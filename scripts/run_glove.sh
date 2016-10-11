@@ -1,23 +1,32 @@
 #!/bin/bash
 
+#PBS -S /bin/sh
+#PBS -N glove_stackexchange_500
+#PBS -l pmem=120g
+#PBS -m abe
+#PBS -q shallow
+#PBS -l walltime=48:00:00 
+
 # Makes programs, downloads sample data, trains a GloVe model, and then evaluates it.
 # One optional argument can specify the language used for eval script: matlab, octave or [default] python
 
-DATADIR=/fs/clip-amr/question_generation/datasets/stackoverflow/academia.stackexchange.com
-CORPUS=$DATADIR/plain_text.txt
+#DATADIR=/fs/clip-amr/question_generation/datasets/stackoverflow/academia.stackexchange.com
+#CORPUS=$DATADIR/plain_text.txt
+DATADIR=/fs/clip-scratch/raosudha/datasets/stackoverflow
+CORPUS=$DATADIR/stackexchange_datadump.txt
 VOCAB_FILE=$DATADIR/vocab.txt
 COOCCURRENCE_FILE=$DATADIR/cooccurrence.bin
 COOCCURRENCE_SHUF_FILE=$DATADIR/cooccurrence.shuf.bin
 BUILDDIR=/fs/clip-sw/user-supported/GloVe-1.2/build
-SAVE_FILE=$DATADIR/vectors
+SAVE_FILE=$DATADIR/vectors_500
 VERBOSE=2
-MEMORY=4.0
+MEMORY=64.0
 VOCAB_MIN_COUNT=5
-VECTOR_SIZE=50
-MAX_ITER=15
+VECTOR_SIZE=500
+MAX_ITER=40
 WINDOW_SIZE=15
 BINARY=2
-NUM_THREADS=8
+NUM_THREADS=12
 X_MAX=10
 
 $BUILDDIR/vocab_count -min-count $VOCAB_MIN_COUNT -verbose $VERBOSE < $CORPUS > $VOCAB_FILE
