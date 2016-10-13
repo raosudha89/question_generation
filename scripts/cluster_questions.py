@@ -1,8 +1,9 @@
 import sys
 import xml.etree.ElementTree as ET
 from nltk.tokenize import word_tokenize
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 import numpy as np
+import re
 import pdb
 
 WORD_REDUCTION_FACTOR=0.01
@@ -12,6 +13,12 @@ def preprocess(text):
 	return " ".join(word_tokenize(text.lower()))
 
 def is_question(text):
+	r = re.compile(r"(http://[^ ]+)")
+	text = r.sub("", text) #remove urls so that ? is not identified in urls
+	#remove content between quotes, braces so that ? is not identified in them
+	text = re.sub("\".*?\"", "", text)
+	text = re.sub("\(.*?\)", "", text)
+	text = re.sub("\[.*?\]", "", text)
 	words = text.split(' ')
 	#question_tokens = ['?', 'who', 'when', 'where', 'why', 'how', 'what']
 	question_tokens = ['?']
@@ -36,6 +43,8 @@ def extract_questions(posts_file, comments_file):
 			continue	
 		text = comment.attrib['Text']
 		text = preprocess(text)
+		if len(text.split()) > 30: #ignore long comments
+			continue
 		if is_question(text):
 			questions.append(text)
 	return questions
@@ -81,13 +90,22 @@ def cluster_question_sentences(questions, question_word_cluster_label, n_word_cl
 				word_cluster_label = n_word_clusters
 			question_sentence_vectors[i][word_cluster_label] += 1
 		question_sentence_vectors[i] = normalize(question_sentence_vectors[i])
-	n_sentence_clusters = int(len(question_sentence_vectors)*SENTENCE_REDUCTION_FACTOR)
-	kmeans = KMeans(n_clusters=n_sentence_clusters, random_state=0).fit(question_sentence_vectors)
-	question_sentence_labels = kmeans.labels_
+	#n_sentence_clusters = int(len(question_sentence_vectors)*SENTENCE_REDUCTION_FACTOR)
+	#kmeans = KMeans(n_clusters=n_sentence_clusters, random_state=0).fit(question_sentence_vectors)
+	#question_sentence_labels = kmeans.labels_
+	dbscan = DBSCAN(eps=0.1, min_samples=1, n_jobs=4).fit(question_sentence_vectors)
+	question_sentence_labels = dbscan.labels_
+	n_sentence_clusters = len(set(question_sentence_labels)) - (1 if -1 in question_sentence_labels else 0)
+	print "No. of clusters ", n_sentence_clusters
+	pdb.set_trace()
 	question_clusters = [[] for i in range(n_sentence_clusters)]
 	for i, question in enumerate(questions):
 		question_clusters[question_sentence_labels[i]].append(questions[i])	
-	pdb.set_trace()	
+	for cluster in question_clusters:
+		if len(cluster) >= 10:
+			for sent in cluster: 
+				print sent+"\n"
+			pdb.set_trace()	
 
 if __name__ == "__main__":
 	if len(sys.argv) < 4:
