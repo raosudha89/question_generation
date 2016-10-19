@@ -1,5 +1,5 @@
-DATADIR=/fs/clip-corpora/stackoverflow
-DATAOUTDIR=/fs/clip-scratch/raosudha/datasets/stackoverflow
+DATADIR=/fs/clip-corpora/stackexchange
+DATAOUTDIR=/fs/clip-scratch/raosudha/datasets/stackexchange
 SCRIPTDIR=/fs/clip-amr/question_generation/scripts
 for site in $DATADIR/*.7z;
 do
