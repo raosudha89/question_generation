@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N site_spectral
+#PBS -N site_kmeans
 #PBS -l pmem=16g
 #PBS -m abe
 #PBS -l walltime=48:00:00 
@@ -9,8 +9,8 @@
 DATADIR=/fs/clip-corpora/stackexchange
 SCRIPTDIR=/fs/clip-amr/question_generation/scripts
 WORDVECTORS=/fs/clip-amr/question_generation/datasets/stackexchange/vectors_200.txt
-CLUSTERSDIR=/fs/clip-amr/question_generation/datasets/stackexchange/clusters_spectral
-CLUSTERALGO=spectral
+CLUSTERSDIR=/fs/clip-amr/question_generation/datasets/stackexchange/clusters_kmeans
+CLUSTERALGO=kmeans
 
 source ~/pythonENV/bin/activate
 for site in $DATADIR/*.7z;
