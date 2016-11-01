@@ -23,24 +23,15 @@ def get_word_indices(words, vocab, max_len):
 			word_indices[i] = vocab[UNK]
 	return word_indices
 
-def generate_data(posthistory_file, max_len, vocab):
-	posthistory_tree = ET.parse(posthistory_file)
+def generate_data(posts_str, max_len, vocab):
 	posts = []
 	masks = []
-	labels = []
-	for posthistory in posthistory_tree.getroot()[:25000]:
-		posthistory_typeid = posthistory.attrib['PostHistoryTypeId']
-		if posthistory_typeid in ['2', '5']:
-			text = posthistory.attrib['Text']
-			words = preprocess(text)
-			indices = get_word_indices(words, vocab, max_len)
-			posts.append(indices)
-			masks.append(np.concatenate((np.ones(min(len(words), max_len), dtype=np.int32), np.zeros(max(0, max_len-len(words)), dtype=np.int32)))) 
-			if posthistory_typeid == '2':
-				labels.append(0)
-			elif posthistory_typeid == '5':
-				labels.append(1)
-	return [np.asarray(posts, dtype=np.int32), np.asarray(masks, dtype=np.int32), np.asarray(labels, dtype=np.int32)]
+	for post_str in posts_str:
+		words = preprocess(post_str)
+		indices = get_word_indices(words, vocab, max_len)
+		posts.append(indices)
+		masks.append(np.concatenate((np.ones(min(len(words), max_len), dtype=np.int32), np.zeros(max(0, max_len-len(words)), dtype=np.int32)))) 
+	return [np.asarray(posts, dtype=np.int32), np.asarray(masks, dtype=np.int32)]
 
 def iterate_minibatches(posts, masks, labels, batch_size, shuffle=False):
 	if shuffle:
@@ -112,10 +103,10 @@ def validate(name, val_fn, fold):
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
-		print "usage: python completeness_classifier_posthistory.py <posthistory.xml> <word_vectors.txt>"
+		print "usage: python incomplete_post_classifier.py posts.p labels.p"
 		sys.exit(0)
-	posthistory_file = open(sys.argv[1], 'r')
-	word_vectors_file = open(sys.argv[2], 'r')
+	posts_str = p.load(open(sys.argv[1], 'rb'))
+	labels = p.load(open(sys.argv[2], 'rb'))
 	d_word = 200
 	word_embeddings = []
 	vocab = {}
@@ -128,7 +119,7 @@ if __name__ == "__main__":
 	word_embeddings.append([np.random.randn() for j in range(d_word)])
 
 	len_voc = len(vocab.keys())
-	num_labels = 2
+	num_labels = max(labels)
 	d_hid = 100
 	lr = 0.001
 	rho = 1e-5
@@ -144,9 +135,8 @@ if __name__ == "__main__":
 
 	start = time.time()
 	print 'generating data...'
-	data = generate_data(posthistory_file, max_len, vocab)
+	posts, masks = generate_data(posts_str, max_len, vocab)
 	print 'done! Time taken: ', time.time()-start
-	posts, masks, labels = data
 	t_size = int(posts.shape[0]*0.8)
 	train = posts[:t_size], masks[:t_size], labels[:t_size]
 	dev = posts[t_size:], masks[t_size:], labels[t_size:]
