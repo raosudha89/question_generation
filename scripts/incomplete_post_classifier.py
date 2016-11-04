@@ -7,6 +7,7 @@ import theano.tensor as T
 from collections import Counter
 import pdb
 import time
+import cPickle as p
 
 def preprocess(text):
 	return word_tokenize(text.lower())
@@ -103,10 +104,11 @@ def validate(name, val_fn, fold):
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
-		print "usage: python incomplete_post_classifier.py posts.p labels.p"
+		print "usage: python incomplete_post_classifier.py posts.p labels.p word_vectors.txt"
 		sys.exit(0)
 	posts_str = p.load(open(sys.argv[1], 'rb'))
 	labels = p.load(open(sys.argv[2], 'rb'))
+	word_vectors_file = open(sys.argv[3], 'r')
 	d_word = 200
 	word_embeddings = []
 	vocab = {}
@@ -116,15 +118,14 @@ if __name__ == "__main__":
 		vocab[vals[0]] = i
 		word_embeddings.append(map(float, vals[1:]))
 		i += 1
-	word_embeddings.append([np.random.randn() for j in range(d_word)])
 
 	len_voc = len(vocab.keys())
-	num_labels = max(labels)
+	num_labels = max(labels)+1
 	d_hid = 100
 	lr = 0.001
 	rho = 1e-5
 	freeze = True
-	batch_size = 100
+	batch_size = 10
 	n_epochs = 20
 	max_len = 100
 
@@ -136,6 +137,7 @@ if __name__ == "__main__":
 	start = time.time()
 	print 'generating data...'
 	posts, masks = generate_data(posts_str, max_len, vocab)
+	labels = np.asarray(labels, dtype=np.int32)
 	print 'done! Time taken: ', time.time()-start
 	t_size = int(posts.shape[0]*0.8)
 	train = posts[:t_size], masks[:t_size], labels[:t_size]
@@ -149,7 +151,10 @@ if __name__ == "__main__":
 		posts, masks, labels = train	
 		num_batches = 0.
 		for p, m, l in iterate_minibatches(posts, masks, labels, batch_size, shuffle=True):
-			preds, loss = train_fn(p, m, l)
+			try:
+				preds, loss = train_fn(p, m, l)
+			except:
+				pdb.set_trace()
 			cost += loss
 			num_batches += 1
 

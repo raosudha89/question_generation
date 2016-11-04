@@ -13,14 +13,14 @@ def preprocess(text):
 
 def get_word_indices(words, vocab, max_len):
 	word_indices = np.zeros(max_len, dtype=np.int32)
-	UNK = "<unk>"
+	unk = "<unk>"
 	for i, w in enumerate(words):
 		if i >= max_len:
 			break
 		try:
 			word_indices[i] = vocab[w]
 		except:
-			word_indices[i] = vocab[UNK]
+			word_indices[i] = vocab[unk]
 	return word_indices
 
 def generate_data(posthistory_file, max_len, vocab):
@@ -125,7 +125,6 @@ if __name__ == "__main__":
 		vocab[vals[0]] = i
 		word_embeddings.append(map(float, vals[1:]))
 		i += 1
-	word_embeddings.append([np.random.randn() for j in range(d_word)])
 
 	len_voc = len(vocab.keys())
 	num_labels = 2

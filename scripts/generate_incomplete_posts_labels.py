@@ -87,7 +87,8 @@ def cluster_questions(question_embeddings, cluster_algo):
 		kmeans = KMeans(n_clusters=n_clusters, n_jobs=-1, random_state=0).fit(question_embeddings) #n_jobs=-1 runs #CPUs jobs in parallel
 		question_labels = kmeans.labels_
 	elif cluster_algo == "dbscan":
-		dbscan = DBSCAN(eps=0.65, min_samples=1, n_jobs=-1).fit(question_embeddings)
+		#dbscan = DBSCAN(eps=0.65, min_samples=1, n_jobs=-1).fit(question_embeddings)
+		dbscan = DBSCAN(eps=0.65, min_samples=1).fit(question_embeddings)
 		question_labels = dbscan.labels_
 		n_clusters = len(set(question_labels)) - (1 if -1 in question_labels else 0)
 	else:
@@ -162,8 +163,8 @@ if __name__ == "__main__":
 		postId_clusters[question_cluster_labels[i]].append(postId)
 
 	for cluster in postId_clusters:
-		#if len(cluster) < 5 or len(cluster) > len(questions)/4: #too few or too many items in a cluster
-		#	continue
+		if len(cluster) < 4 or len(cluster) > len(posts)/4: #too few or too many items in a cluster
+			continue
 		for postId in cluster:
 			print posts_log[postId][4][0].encode('utf-8')
 		print "----------------------------------------------------------------"

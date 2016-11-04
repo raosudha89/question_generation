@@ -4,7 +4,7 @@
 #PBS -N classifier_3dprinting
 #PBS -l pmem=32g
 #PBS -m abe
-#PBS -l walltime=12:00:00 
+#PBS -l walltime=24:00:00 
 
 source /fs/clip-amr/isi-internship/theano-env/bin/activate
 cd /fs/clip-amr/question_generation
