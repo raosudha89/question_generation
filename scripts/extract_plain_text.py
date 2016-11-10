@@ -7,6 +7,9 @@ def preprocess(text):
 	return " ".join(word_tokenize(text.lower()))
 
 if __name__ == "__main__":
+	if len(sys.argv) < 3:
+		print "usage: python extract_plain_text.py <Posts.xml> <Comments.xml> <output_plain_text.txt>"
+		sys.exit(0)
 	posts_file = open(sys.argv[1], 'r')
 	comments_file = open(sys.argv[2], 'r')
 	plain_text_file = open(sys.argv[3], 'w')

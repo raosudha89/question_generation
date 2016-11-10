@@ -1,7 +1,6 @@
 import sys
 import xml.etree.ElementTree as ET
 from nltk.tokenize import word_tokenize
-from nltk.tokenize import sent_tokenize
 import nltk
 nltk.download('punkt')
 from sklearn.cluster import KMeans
