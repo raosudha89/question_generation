@@ -3,7 +3,7 @@ DATAOUTDIR=/fs/clip-amr/question_generation/datasets/stackexchange
 SCRIPTDIR=/fs/clip-amr/question_generation/scripts
 WORDVECTORS=/fs/clip-amr/question_generation/datasets/stackexchange/vectors_200.txt
 source /fs/clip-amr/isi-internship/theano-env/bin/activate
-for site in $DATADIR/*.7z;
+for site in $DATADIR/math.*.7z;
 do
 	sitename=`basename ${site%.7z}`
 	echo $sitename

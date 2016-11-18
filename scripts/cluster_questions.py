@@ -30,7 +30,7 @@ def cluster_questions(question_embeddings, cluster_algo):
 		kmeans = KMeans(n_clusters=n_clusters, n_jobs=-1, random_state=0).fit(question_embeddings) #n_jobs=-1 runs #CPUs jobs in parallel
 		question_labels = kmeans.labels_
 	elif cluster_algo == "dbscan":
-		dbscan = DBSCAN(eps=0.25, min_samples=1).fit(question_embeddings)
+		dbscan = DBSCAN(eps=0.65, min_samples=3).fit(question_embeddings)
 		question_labels = dbscan.labels_
 		n_clusters = len(set(question_labels)) - (1 if -1 in question_labels else 0)
 	else:
@@ -46,6 +46,8 @@ if __name__ == "__main__":
 	word_vectors_file = open(sys.argv[2], 'r')
 	cluster_algo = str(sys.argv[3])
 	word_vectors = {}
+
+	print 'No. of questions:', len(questions)
 	for line in word_vectors_file.readlines():
 		vals = line.rstrip().split(' ')
 		word_vectors[vals[0]] = map(float, vals[1:])
@@ -56,6 +58,7 @@ if __name__ == "__main__":
 		question_embeddings = get_embeddings(question_toks, word_vectors)
 		weights = [0.5 if tok in stopword_list else 1.0 for tok in question_toks] 
 		avg_question_embeddings.append(np.average(question_embeddings, axis=0, weights=weights))
+		#avg_question_embeddings.append(np.average(question_embeddings, axis=0))
 
 	question_labels, n_clusters = cluster_questions(avg_question_embeddings, cluster_algo)	
 	question_clusters = [[] for i in range(n_clusters)]
@@ -63,9 +66,10 @@ if __name__ == "__main__":
 		question_clusters[question_labels[i]].append(questions[i])
 	
 	normalized_question_per_label = [None]*n_clusters
+	print 'No. of clusters:', n_clusters
 	for i, cluster in enumerate(question_clusters):
-		#if len(cluster) > 5 and len(cluster) < len(questions)/4:
-		if True:	
+		if len(cluster) > 2:
+		#if True:	
 			for question in cluster: 
 				print question.encode('utf-8')
 			print "----------------------------------------------------------------"

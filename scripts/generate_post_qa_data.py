@@ -9,7 +9,7 @@ import numpy as np
 import datetime
 import cPickle as p
 
-domain_words = ['duplicate', 'upvote', 'downvote', 'vote']
+domain_words = ['duplicate', 'upvote', 'downvote', 'vote', 'related']
 
 def get_tokens(text):
 	return word_tokenize(text.lower())

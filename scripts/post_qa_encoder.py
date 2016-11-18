@@ -90,13 +90,13 @@ def build_lstm(post_max_len, question_max_len, answer_max_len, len_voc, d_word, 
 	answer_out = lasagne.layers.get_output(l_answer_emb)
 	answer_out = T.mean(answer_out * answer_masks[:,:,None], axis=1)
 	
-	#pred_answer_out = T.sum(T.stack([post_out, question_out], axis=2), axis=2)
-	pred_answer_out = question_out
+	pred_answer_out = T.sum(T.stack([post_out, question_out], axis=2), axis=2)
+	#pred_answer_out = question_out
 
-	#post_lstm_params = lasagne.layers.get_all_params(l_post_lstm, trainable=True)
+	post_lstm_params = lasagne.layers.get_all_params(l_post_lstm, trainable=True)
 	question_lstm_params = lasagne.layers.get_all_params(l_question_lstm, trainable=True)
-	#all_params = post_lstm_params + question_lstm_params
-	all_params = question_lstm_params
+	all_params = post_lstm_params + question_lstm_params
+	#all_params = question_lstm_params
 
 	# objective computation
 	loss = T.sum(lasagne.objectives.squared_error(pred_answer_out, answer_out))
@@ -104,10 +104,10 @@ def build_lstm(post_max_len, question_max_len, answer_max_len, len_voc, d_word, 
 
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=lr)
 
-	#train_fn = theano.function([posts, post_masks, questions, question_masks, answers, answer_masks], loss, updates=updates)
-	#val_fn = theano.function([posts, post_masks, questions, question_masks, answers, answer_masks], [pred_answer_out, answer_out])
-	train_fn = theano.function([questions, question_masks, answers, answer_masks], loss, updates=updates)
-	val_fn = theano.function([questions, question_masks, answers, answer_masks], [pred_answer_out, answer_out])
+	train_fn = theano.function([posts, post_masks, questions, question_masks, answers, answer_masks], loss, updates=updates)
+	val_fn = theano.function([posts, post_masks, questions, question_masks, answers, answer_masks], [pred_answer_out, answer_out])
+	#train_fn = theano.function([questions, question_masks, answers, answer_masks], loss, updates=updates)
+	#val_fn = theano.function([questions, question_masks, answers, answer_masks], [pred_answer_out, answer_out])
 	return train_fn, val_fn
 
 def get_random_n(questions, question_masks, N):
@@ -144,8 +144,8 @@ def validate(name, val_fn, fold):
 			new_answers = np.concatenate((new_answers, np.tile(answers[i], (N, 1))), axis=0)
 			new_answer_masks = np.concatenate((new_answer_masks, np.tile(answer_masks[i], (N, 1))), axis=0)
 			
-	#pred_answers_out, answers_out = val_fn(new_posts, new_post_masks, new_questions, new_question_masks, new_answers, new_answer_masks)
-	pred_answers_out, answers_out = val_fn(new_questions, new_question_masks, new_answers, new_answer_masks)
+	pred_answers_out, answers_out = val_fn(new_posts, new_post_masks, new_questions, new_question_masks, new_answers, new_answer_masks)
+	#pred_answers_out, answers_out = val_fn(new_questions, new_question_masks, new_answers, new_answer_masks)
 	errors = [0.0]*N
 	for i in range(len(answers_out)):
 		error = mean_squared_error(pred_answers_out[i], answers_out[i])
@@ -184,8 +184,8 @@ if __name__ == "__main__":
 	lr = 0.001
 	rho = 1e-5
 	freeze = True
-	batch_size = 10
-	n_epochs = 20
+	batch_size = 200
+	n_epochs = 20 
 	post_max_len = 100
 	question_max_len = 20
 	answer_max_len = 20
@@ -216,8 +216,8 @@ if __name__ == "__main__":
 		posts, post_masks, questions, question_masks, answers, answer_masks = train	
 		num_batches = 0.
 		for p, pm, q, qm, a, am in iterate_minibatches(posts, post_masks, questions, question_masks, answers, answer_masks, batch_size, shuffle=True):
-			#loss = train_fn(p, pm, q, qm, a, am)
-			loss = train_fn(q, qm, a, am)
+			loss = train_fn(p, pm, q, qm, a, am)
+			#loss = train_fn(q, qm, a, am)
 			cost += loss
 			num_batches += 1
 
