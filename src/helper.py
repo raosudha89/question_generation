@@ -1,4 +1,8 @@
 import sys
+from nltk.tokenize import word_tokenize
+import nltk
+nltk.download('punkt')
+import numpy as np
 
 def get_tokens(text):
 	return word_tokenize(text.lower())

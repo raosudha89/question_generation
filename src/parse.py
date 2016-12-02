@@ -2,9 +2,6 @@ import sys
 import cPickle as p
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from nltk.tokenize import word_tokenize
-import nltk
-nltk.download('punkt')
 import re
 import datetime
 import pdb
@@ -28,8 +25,6 @@ class PostParser:
 		for post in posts_tree.getroot():
 			postId = post.attrib['Id']
 			postTypeId = post.attrib['PostTypeId']
-			if postTypeId != '1':
-				continue
 			try:
 				title = get_tokens(post.attrib['Title'])
 			except:
@@ -113,7 +108,10 @@ class PostHistoryParser:
 				self.posthistories[postId].edit_comment = get_tokens(posthistory.attrib['Comment'])
 				self.posthistories[postId].edit_date = datetime.datetime.strptime(posthistory.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S") 
 							#format of date e.g.:"2008-09-06T08:07:10.730" We don't want .730
-				
+		for postId in self.posthistories.keys():
+			if not self.posthistories[postId].edited_post:
+				del self.posthistories[postId]
+		
 	def get_posthistories(self):
 		return self.posthistories
 
