@@ -63,6 +63,8 @@ def validate(val_fn, fold_name, epoch, fold, batch_size):
 	start = time.time()
 	num_batches = 0.
 	cost = 0.
+	corr = 0
+	total = 0
 	posts, post_masks, questions_list, question_masks_list, answers_list, answer_masks_list = fold
 	N = len(questions_list[0])
 	for p, pm, q, qm, a, am in iterate_minibatches(posts, post_masks, questions_list, question_masks_list, \
@@ -80,11 +82,17 @@ def validate(val_fn, fold_name, epoch, fold, batch_size):
 		for i in range(N):
 			a_list[i] = a[:,i].astype('int32')
 			am_list[i] = am[:,i].astype('float32')
-		loss = val_fn(p, pm, q_list, qm_list, a_list, am_list)
+		out = val_fn(p, pm, q_list, qm_list, a_list, am_list)
+		loss = out[0]
+		errors = np.array(out[1:])
+		for i in range(len(p)):
+			if np.argmin(errors[:,i]) == 0:
+				corr += 1
+			total += 1
 		cost += loss*1.0/len(p)
 		num_batches += 1
-	lstring = '%s: epoch:%d, cost:%f, time:%d' % \
-				(fold_name, epoch, cost / num_batches, time.time()-start)
+	lstring = '%s: epoch:%d, cost:%f, acc:%f, time:%d' % \
+				(fold_name, epoch, cost / num_batches, corr*1.0/total, time.time()-start)
 	print lstring
 
 def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, N, post_max_len, question_max_len, answer_max_len, batch_size, learning_rate, rho, freeze=False):
@@ -230,14 +238,20 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, N, post_max_l
 
 	all_params = emb_post_params + emb_question_params + emb_answer_params + \
 				all_post_params + all_question_params + all_answer_params
-	loss = T.sum(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[0]))
-	loss += rho * sum(T.sum(l ** 2) for l in all_params)
+	errors = [None]*N
+	for i in range(N):
+		errors[i] = T.sum(lasagne.objectives.squared_error(pred_answer_out[i], answer_out[i]), axis=1)
 
+	loss = T.sum(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[0]))
+	for i in range(1, N):
+		loss += T.sum(abs(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[i]) - lasagne.objectives.squared_error(question_out[0], question_out[i])))
+
+	loss += rho * sum(T.sum(l ** 2) for l in all_params)
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=learning_rate)
 	train_fn = theano.function([posts, post_masks, questions_list, question_masks_list, answers_list, answer_masks_list], \
-							   loss, updates=updates)
+							   [loss] + errors, updates=updates)
 	val_fn = theano.function([posts, post_masks, questions_list, question_masks_list, answers_list, answer_masks_list], \
-							   loss)
+							   [loss] + errors)
 	return train_fn, val_fn
 
 def main(args):
