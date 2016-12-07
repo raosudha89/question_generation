@@ -1,0 +1,132 @@
+%
+% File acl2016.tex
+%
+%% Based on the style files for ACL-2015, with some improvements
+%%  taken from the NAACL-2016 style
+%% Based on the style files for ACL-2014, which were, in turn,
+%% Based on the style files for ACL-2013, which were, in turn,
+%% Based on the style files for ACL-2012, which were, in turn,
+%% based on the style files for ACL-2011, which were, in turn, 
+%% based on the style files for ACL-2010, which were, in turn, 
+%% based on the style files for ACL-IJCNLP-2009, which were, in turn,
+%% based on the style files for EACL-2009 and IJCNLP-2008...
+
+%% Based on the style files for EACL 2006 by 
+%%e.agirre@ehu.es or Sergi.Balari@uab.es
+%% and that of ACL 08 by Joakim Nivre and Noah Smith
+
+\documentclass[11pt]{article}
+\usepackage{acl2016}
+\usepackage{times}
+\usepackage{url}
+\usepackage{latexsym}
+\usepackage{graphicx}
+
+%\aclfinalcopy % Uncomment this line for the final submission
+%\def\aclpaperid{***} %  Enter the acl Paper ID here
+
+%\setlength\titlebox{5cm}
+% You can expand the titlebox if you need extra space
+% to show all the authors. Please do not make the titlebox
+% smaller than 5cm (the original size); we will check this
+% in the camera-ready version and ask you to change it back.
+
+\newcommand\BibTeX{B{\sc ib}\TeX}
+
+\title{Are you asking the right questions? \\ Question generation for filling missing information}
+
+\author{First Author \\
+  Affiliation / Address line 1 \\
+  Affiliation / Address line 2 \\
+  Affiliation / Address line 3 \\
+  {\tt email@domain} \\\And
+  Second Author \\
+  Affiliation / Address line 1 \\
+  Affiliation / Address line 2 \\
+  Affiliation / Address line 3 \\
+  {\tt email@domain} \\}
+
+\date{}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+
+\end{abstract}
+
+
+\section{Introduction}
+
+- Asking the right questions is the key to understanding any content better \\
+- Asking intelligent questions is hard. We as humans are poor at it too \\
+- In education, there has been work in understanding the importance of asking questions for improving the process of learning \\
+- Most previous work in question generation has been reading comprehension type question where the answer is found in the text \\
+- However the purpose that we ask questions in our day to day life -- not to test someone's understanding about a text, but to clarify the content of the text or to point out missing information in the text \\
+- Although there is a understanding that asking such questions is important (cite work from other fields), there has not been any work in the computational world before \\
+- We, for the first time, introduce a novel method to generate questions that help clarify the content \\
+- We use data from stackexchange.com where uses post issues and other users post solutions to it. However a lot of posts go unanswered because they are not clear enough. \\
+- We model our task as whether we can ask such clarifying questions to the post.  We pick the question that maximizes the expected utility of the post
+- We take inspiration from value of perfect information in AI and introduce a neural network model 
+
+\section{Related Work} \label{related_work}
+
+'Deep Questions without Deep Understanding' 
+- generate high-level (they call it deep) question templates by crowdsourcing and then given a text segment, rank question templates that are relevant. 
+- We on the other hand make use of existing resources to generate question templates. 
+
+Automatic Factual Question Generation from Text 
+- Normal RC type questions generation task
+- This is a thesis, so related work section is exhaustive and so can be useful
+
+Automatic Question Generation for Literature Review Writing Support
+- Generates questions that can help author write the lit review better
+- Input to system is a literature review and o/p is a set of questions
+- The system captures all the citations in the paper, extract features out of it and then uses fixed templates to ask questions about the content
+- The introduction/motivation of paper is good
+						
+Generating Natural Questions About an Image 
+- Task: Visual Question Generation -- Different from image captioning since the question asked who help infer something from the image that is not directly shown in the image
+- Contributions - created new dataset, collected gold annotations and showed that image captioning doesn't do well at this, analyzed several methods and showed deep learning models outperform, created evaluation metric delta-BLEU for this task
+			
+The Importance of Being Important: Question Generation 
+- Why is asking intelligent questions important
+- Some related work are relevant
+
+Question Generation from Concept Maps
+- Research question - how are questions generated in tutoring systems
+- Domain - dialogue between tutor and a student
+- They have drawn connections with work in learning/psychology
+- Concept map is nothing but a graph with nodes (key terms) and edges (relations like is-a, has-a, etc)
+- Their method is to generate concept maps and then have rules to generate questions using these maps
+- Highly cited work
+
+Meta Model in Intro to Neuro-Linguistic Programming
+- The only answer to the question 'What does a word really mean?' is 'To whom?'
+- How do we know we understand someone? By giving their words meaning. Our meaning. Not  their meaning. And there is no guarantee that the two meanings are the same.
+- The question we want to explore is, what happens to our thoughts when we clothe them in language, and how faithfully are they preserved when our listeners undress them.
+- NLP (Neuro Linguistic Programming) has a very useful map of how language operates called the 'Meta Model'. The Meta Model uses language to clarify language, preventing you from deluding yourself that you understand what words mean; it reconnects language with experience.
+- The Meta Model is a series of questions that seek to reverse and unravel the deletions and distortions and generalizations of language. These questions aim to fill in the missing information, reshape the structure and elicit specific information to make sense of the communication.
+- Mental map of the speaker
+- In an everyday context, the Meta Model gives you a systematic way of gathering information, when you need to know more precisely what a person means. It is a skill that is well worth learning.
+
+Filling Knowledge Gaps in Text for Machine Reading
+- In this work they fill the missing gaps with the help of external knowledge bases
+- However in our work we suggest that filling the missing information might be hard but asking a question that would point to it is easier and hence more helpful.
+
+\section{Methodology}
+
+\subsection{Clustering of questions}
+
+\subsection{}
+
+\section{Experiments and Results}\label{experiments_results}
+
+\section{Analysis}
+
+\section{Conclusion}
+
+\bibliography{question_generation}
+\bibliographystyle{acl2016}
+
+
+\end{document}
