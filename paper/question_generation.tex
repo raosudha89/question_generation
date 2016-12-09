@@ -55,11 +55,21 @@
 \end{abstract}
 \section{Introduction}
 
-Asking question is an important aspect of communication and understanding. In the field of Neurolinguistics Programming, \cite{o2011introducing} go so far as saying -- ``The only answer to the question `What does a word really mean?' is `To whom?'. The way we know we understand someone is by giving their words meaning. Our meaning. Not their meaning. And there is no guarantee that the two meanings are the same." The primary reason for this being each person has a mental map of their own. As a way to circumvent this issue, Neurolinguistics Programming introduces Meta Model \cite{bandler1975structure} which is a series of questions that seek to reverse and unravel the deletions and distortions and generalizations of language. These questions aim to fill in the missing information, reshape the structure and elicit specific information to make sense of the communication.
+Asking a question is an important aspect of communication. We do not always understand each other. In the field of Neurolinguistics Programming, O'Connor and Seymour \shortcite{o2011introducing} go so far as saying -- ``The only answer to the question `What does a word really mean?' is `To whom?'. The way we know we understand someone is by giving their words meaning. Our meaning. Not their meaning. And there is no guarantee that the two meanings are the same." The primary reason for this being each person has a mental map of their own. As a step towards alleviating some of this difficulty, Bandler and Grinder \shortcite{bandler1975structure} introduce a tool called Meta Model which is a series of questions that seek to reverse and unravel the deletions and distortions and generalizations of language. These questions aim to fill in the missing information, reshape the structure and elicit specific information to make sense of the communication.
 
-In the field of natural language processing, there is an understanding of the importance of asking questions. However most previous work has been focused on generating questions whose answers can be found in some aforementioned text. If we wish to make computers better at understanding a given text, we should also enable them to ask questions about the missing information in the text; a text that was created using a different mental map in mind. In our work, we for the first time introduce a model that can learn to ask questions about missing information in a text. To train our model we use an idea from decision theory called the Value of Perfect Information (VPI) which measures the worth of collecting additional information. Using this idea we make the decision of whether to ask a question or not and asking which question would increase the expected utility of a given text; where the expectation is over all the possible answers to the question. 
+In the field of natural language processing, there is an understanding of the importance of asking questions. However, most previous work has focused on generating questions whose answers can be found in some aforementioned text. An additional important measure of understanding is how well one can generate questions whose answers cannot be found in a given text; i.e. ask questions about missing information. Students are often encouraged to ask questions to be better learners. If we wish to make computers better at understanding a given text, we should also enable them to ask questions about the missing information in the text; a text that was created using a different mental map in mind. Asking such a question is a challenge, even for humans. It requires a compilation of versatile skill-set; two of the important ones being --- learning to ask a question by looking at previously asked questions and a domain understanding of the topic of the text to know what should have been there but is missing. When we are trying to teach a computer to ask such questions, an additional challenge is getting the appropriate data to train a machine learning model. In this work, we take a step forward in this direction by making two main contributions:
+\begin{enumerate}
+\item Introduce a dataset of size X using stackexchange.com that fits our problem scenario
+\item Train a neural network model that learns to ask clarifying questions to unanswered posts on stackexchange.com
+\end{enumerate}
+    
+To create our dataset, we use the data dump from stackexchange.com which is a network of 150+ online question answering communities (including stackoverflow.com, a popular Q\&A forum). Typically, a user posts a question or a concern and other users answer them. However, a lot of these posts remain unanswered. Asaduzzaman et al. \shortcite{asaduzzaman2013answering} say that one of the main reasons for posts remaining unanswered is that they are not clear enough or they are missing some information. Figure 1 shows an example of an unanswered post. These unanswered posts rightly fit our use case of a text with potential missing information that can be filled by asking the right questions. We make the following observation: in several instances, users post comments to a given post asking either for some clarification or for some missing information. Subsequently, the author of the post updates the post adding that piece of missing information. Figure 1 shows an example of such an update. We make use of this observation to create our dataset of \{\textit{post, question, answer}\} triples; where the \textit{post} is the initial post; the \textit{question} is the question comment on the post, and the \textit{answer} is the update made to the post. Our task is defined as given an unanswered post, decide if the post is complete or incomplete (has something missing) and in case of an incomplete post, ask a question. 
+    
+To train our model we use an idea from decision theory called the Value of Perfect Information (VPI) which measures the worth of collecting additional information. Using this idea we make the decision of whether to ask a question or not and the decision of which question when answered would increase the expected utility of a given text; where the expectation is over all possible answers to the question. 
 
-Our second contribution is the introduction of a dataset that can be used to train our question generation model. We use the data dump from stackexchange.com which is a network of question-and-answer websites on topics in varied fields. Typically, a user posts a question or a concern and other users answer them. However, a lot of these posts remain unanswered. \cite{asaduzzaman2013answering} show that one of the main reasons for posts remaining unanswered is that they are not clear enough or they are missing some information. Figure 1 shows an example of an unanswered post. These unanswered posts rightly fit our use case of a text with potential missing information that can be filled by asking the right question. We make the observation that in several instances, users post comments to a given post asking either for some clarification or for some missing information. Subsequently, the author of the post updates the post adding that piece of missing information. Figure 1 shows an example of such an update. We make use of this observation to create our dataset of \{\textit{post, question, answer}\} triples; where the \textit{post} is the initial post; the \textit{question} is the question comment on the post, and the \textit{answer} is the update made to the post. Our task is defined as given an unanswered post, decide if the post is complete or incomplete (has something missing) and in case of an incomplete post, ask a question. 
+\section{Dataset creation}
+
+\section{Task description}
 
 \iffalse
 - The only answer to the question 'What does a word really mean?' is 'To whom?'
@@ -81,6 +91,10 @@ Our second contribution is the introduction of a dataset that can be used to tra
 - We use data from stackexchange.com where users post issues and other users post solutions to it. However a lot of posts go unanswered because they are not clear enough. \\
 - We model our task as whether we can ask such clarifying questions to the post.  We pick the question that maximizes the expected utility of the post
 - We take inspiration from value of perfect information in AI and introduce a neural network model 
+
+
+
+\section{}
 
 \section{Related Work} \label{related_work}
 
@@ -131,16 +145,6 @@ Bootstrapping semantic parsing from conversations
 - System asks clarification question when asked to parse a sentence 
 - Their work is at the sentence level; ours is at discourse level. Also our work is for asking questions about missing information instead of clarification
 
-
-\section{Dataset creation}
-
-
-- Posts, Post history with edit history
-- extract comments on the post that have question marks
-- we match the edit made to the post with the question comment 
-
-
-\section{Task description}
 
 
 
