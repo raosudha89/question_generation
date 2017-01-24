@@ -21,7 +21,7 @@ def get_data_masks(content, max_len):
 
 def generate_data(posts, post_max_len, questions_list, question_max_len):
 	data_posts = np.zeros((len(posts), post_max_len), dtype=np.int32)
-	data_post_masks = np.zeros((len(posts), post_max_len), dtype=np.int32)
+	data_post_masks = np.zeros((len(posts), post_max_len), dtype=np.float32)
 
 	N = len(questions_list[0])	
 	data_questions_list = np.zeros((len(questions_list), N, question_max_len), dtype=np.int32)
@@ -30,10 +30,7 @@ def generate_data(posts, post_max_len, questions_list, question_max_len):
 	for i in range(len(posts)):
 		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], post_max_len)
 		for j in range(N):
-			try:
-				data_questions_list[i][j], data_question_masks_list[i][j] = get_data_masks(questions_list[i][j], question_max_len)
-			except:
-				pdb.set_trace()
+			data_questions_list[i][j], data_question_masks_list[i][j] = get_data_masks(questions_list[i][j], question_max_len)
 
 	return data_posts, data_post_masks, data_questions_list, data_question_masks_list
 
