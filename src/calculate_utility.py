@@ -96,7 +96,6 @@ def generate_data(posts, post_max_len, labels):
 	return data_posts, data_post_masks, labels
 
 def main(args):
-	import cPickle as p
 	post_vectors = p.load(open(args.utility_post_vectors, 'rb'))
 	labels = p.load(open(args.utility_labels, 'rb'))
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))

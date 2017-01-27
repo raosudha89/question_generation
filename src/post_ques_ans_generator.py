@@ -59,6 +59,8 @@ class PostQuesAnsGenerator:
 			#		continue
 			#except:
 			#	continue
+			if not posthistory.initial_post:
+				continue
 			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)
 			if not answer:
 				continue

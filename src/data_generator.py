@@ -10,9 +10,7 @@ import cPickle as p
 import pdb
 import random
 
-def generate_utility_vectors(posts, posthistories, vocab):
-	start_time = time.time()
-	print 'Generating utility vectors...'	
+def generate_utility_vectors(posts, posthistories, vocab, args):
 	N = len(posts) + len(posthistories)
 	post_vectors = [None]*N
 	labels = [0]*N
@@ -28,8 +26,6 @@ def generate_utility_vectors(posts, posthistories, vocab):
 			post_vectors[i] = get_indices(posts[postId].title + posts[postId].body, vocab)
 			labels[i] = 1
 			i += 1
-	print 'Done! Time taken ', time.time() - start_time
-	print
 	p.dump(post_vectors, open(args.utility_post_vectors, 'wb'))
 	p.dump(labels, open(args.utility_labels, 'wb'))
 
@@ -74,6 +70,26 @@ def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args
 	p.dump(ques_list_vectors, open(args.ques_list_vectors, 'wb'))
 	p.dump(ans_list_vectors, open(args.ans_list_vectors, 'wb'))
 
+def write_data_log(post_ques_answers, lucene_similar_posts, args):
+	lucene_similar_posts = get_similar_posts(lucene_similar_posts)
+
+	start_time = time.time()
+	print 'Writing data log...'
+	out_file = open(os.path.join(os.path.dirname(args.post_vectors), "lucene_post_ques_ans_list.log"), 'w') 
+	N = args.no_of_candidates
+	for postId in lucene_similar_posts:
+		candidate_postIds = lucene_similar_posts[postId][:N]
+		if len(candidate_postIds) < N:
+			continue
+		out_file.write("Post: " + ' '.join(post_ques_answers[postId].post) + '\n\n')
+		for j in range(N):
+			out_file.write("Post: " + ' '.join(post_ques_answers[candidate_postIds[j]].post) + '\n')
+			out_file.write("Question: " + ' '.join(post_ques_answers[candidate_postIds[j]].question_comment) + '\n')
+			out_file.write("Answer: " + ' '.join(post_ques_answers[candidate_postIds[j]].answer) + '\n\n')
+		out_file.write('\n\n')
+	print 'Done! Time taken ', time.time() - start_time
+	print
+
 def generate_docs_for_lucene(post_ques_answers, posts, output_dir):
 	for postId in post_ques_answers:
 		f = open(os.path.join(output_dir, str(postId) + '.txt'), 'w')
@@ -103,7 +119,15 @@ def main(args):
 	vocab = p.load(open(args.vocab, 'rb'))
 	print 'Done! Time taken ', time.time() - start_time
 	print
+
+	start_time = time.time()
+	print 'Generating utility vectors and labels'
+	generate_utility_vectors(posts, posthistories, vocab, args)
+	print 'Done! Time taken ', time.time() - start_time
+	print
 	
+	return
+
 	start_time = time.time()
 	print 'Parsing comments...'
 	comment_parser = CommentParser(args.comments_xml)
@@ -127,8 +151,9 @@ def main(args):
 	print
 
 	generate_docs_for_lucene(post_ques_answers, posts, args.lucene_docs_dir)
-	os.system('cd /fs/clip-amr/lucene && sh run_lucene.sh')
+	os.system('cd /fs/clip-amr/lucene && sh run_lucene.sh ' + args.site_name)
 	generate_neural_vectors(post_ques_answers, args.lucene_similar_posts, vocab, args)
+	write_data_log(post_ques_answers, args.lucene_similar_posts, args)
 
 if __name__ == "__main__":
 	argparser = argparse.ArgumentParser(sys.argv[0])
@@ -144,7 +169,8 @@ if __name__ == "__main__":
 	argparser.add_argument("--lucene_similar_posts", type = str)
 	argparser.add_argument("--word_embeddings", type = str)
 	argparser.add_argument("--vocab", type = str)
-	argparser.add_argument("--no_of_candidates", type = int, default = 5)
+	argparser.add_argument("--no_of_candidates", type = int, default = 20)
+	argparser.add_argument("--site_name", type = str)
 	args = argparser.parse_args()
 	print args
 	print ""
