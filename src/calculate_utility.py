@@ -29,7 +29,7 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, max_len, batc
 	# define network
 	l_in = lasagne.layers.InputLayer(shape=(word_emb_dim, max_len), input_var=posts)
 	l_mask = lasagne.layers.InputLayer(shape=(word_emb_dim, max_len), input_var=masks)
-	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=We)
+	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
 
 	# now feed sequences of spans into VAN
 	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
@@ -40,7 +40,7 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, max_len, batc
 
 	# now predict
 	l_forward_slice = lasagne.layers.SliceLayer(l_lstm, -1, 1)
-	l_out = lasagne.layers.DenseLayer(l_forward_slice, num_units=num_labels,\
+	l_out = lasagne.layers.DenseLayer(l_forward_slice, num_units=2,\
 									nonlinearity=lasagne.nonlinearities.softmax)
 
 	# objective computation
@@ -52,30 +52,29 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, max_len, batc
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=learning_rate)
 
 	train_fn = theano.function([posts, masks, labels], [preds, loss], updates=updates)
-	val_fn = theano.function([posts, masks], preds)
-	debug_fn = theano.function([posts, masks], lasagne.layers.get_output(l_lstm))
-	return train_fn, val_fn, debug_fn
+	val_fn = theano.function([posts, masks, labels], [preds, loss])
+	return train_fn, val_fn
 
 def validate(val_fn, fold_name, epoch, fold, batch_size):
 	start = time.time()
-	num_batches = 0.
+	num_batches = 0
+	cost = 0
 	corr = 0
 	total = 0
-	c = Counter()
 	posts, post_masks, labels = fold
-	for p, pm, l in iterate_minibatches(posts, post_masks, batch_size, shuffle=True):
-		preds = val_fn(posts, masks)
+	for p, pm, l in iterate_minibatches(posts, post_masks, labels, batch_size, shuffle=True):
+		preds, loss = val_fn(p, pm, l)
+		cost += loss
 		preds = np.argmax(preds, axis=1)
 		for i, pred in enumerate(preds):
 			if pred == labels[i]:
 				corr += 1
 			total += 1
-			c[pred] += 1
+		num_batches += 1
 
-	lstring = 'fold:%s, corr:%d, total:%d, acc:%f' %\
-		(name, corr, total, float(corr) / float(total))
+	lstring = '%s: epoch:%d, cost:%f, acc:%f, time:%d' % \
+				(fold_name, epoch, cost*1.0 / num_batches, corr*1.0 / total, time.time()-start)
 	print lstring
-	print c
 
 def get_data_masks(content, max_len):
 	if len(content) > max_len:
@@ -88,8 +87,8 @@ def get_data_masks(content, max_len):
 
 def generate_data(posts, post_max_len, labels):
 	data_posts = np.zeros((len(posts), post_max_len), dtype=np.int32)
-	data_post_masks = np.zeros((len(posts), post_max_len), dtype=np.int32)
-	labels = np.array(labels)
+	data_post_masks = np.zeros((len(posts), post_max_len), dtype=np.float32)
+	labels = np.array(labels, dtype=np.int32)
 
 	for i in range(len(posts)):
 		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], post_max_len)
@@ -97,7 +96,6 @@ def generate_data(posts, post_max_len, labels):
 	return data_posts, data_post_masks, labels
 
 def main(args):
-	import cPickle as p
 	post_vectors = p.load(open(args.utility_post_vectors, 'rb'))
 	labels = p.load(open(args.utility_labels, 'rb'))
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))
@@ -130,26 +128,6 @@ def main(args):
 		validate(train_fn, 'Train', epoch, train, args.batch_size)
 		validate(val_fn, '\t DEV', epoch, dev, args.batch_size)
 		print "\n"
-
-	print 'Training...'
-	# train network
-	for epoch in range(n_epochs):
-		cost = 0.
-		start = time.time()
-		posts, masks, labels = train	
-		num_batches = 0.
-		for p, m, l in iterate_minibatches(posts, masks, labels, batch_size, shuffle=True):
-			preds, loss = train_fn(p, m, l)
-			cost += loss
-			num_batches += 1
-
-		lstring = 'epoch:%d, cost:%f, time:%d' % \
-			(epoch, cost / num_batches, time.time()-start)
-		print lstring
-
-		trperf = validate('train', val_fn, train)
-		devperf = validate('dev', val_fn, dev)
-		print '\n'	
 
 if __name__ == '__main__':
 	argparser = argparse.ArgumentParser(sys.argv[0])

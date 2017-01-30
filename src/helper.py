@@ -3,9 +3,13 @@ from nltk.tokenize import word_tokenize
 import nltk
 nltk.download('punkt')
 import numpy as np
+from BeautifulSoup import BeautifulSoup
 
 def get_tokens(text):
-	return word_tokenize(text.lower())
+	text = BeautifulSoup(text.encode('utf-8').decode('ascii', 'ignore')).text
+	#text = text.replace(')', '').replace('(', '')
+	#text = text.replace(']', '').replace('[', '')
+	return word_tokenize(str(text).lower())
 
 def get_indices(tokens, vocab):
 	indices = np.zeros([len(tokens)], dtype=np.int32)
