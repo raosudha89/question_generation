@@ -21,6 +21,7 @@
 \usepackage{url}
 \usepackage{latexsym}
 \usepackage{graphicx}
+\usepackage{amsmath}
 
 %\aclfinalcopy % Uncomment this line for the final submission
 %\def\aclpaperid{***} %  Enter the acl Paper ID here
@@ -33,7 +34,7 @@
 
 \newcommand\BibTeX{B{\sc ib}\TeX}
 
-\title{Are you asking the right questions? \\ Asking questions for filling missing information}
+\title{Are you asking the right questions? \\ Question generation for filling missing information}
 
 \author{First Author \\
   Affiliation / Address line 1 \\
@@ -55,64 +56,114 @@
 \end{abstract}
 \section{Introduction}
 
-Asking a question is an important aspect of communication. We do not always understand each other. In the field of Neurolinguistics Programming, O'Connor and Seymour \shortcite{o2011introducing} go so far as saying -- ``The only answer to the question `What does a word really mean?' is `To whom?'. The way we know we understand someone is by giving their words meaning. Our meaning. Not their meaning. And there is no guarantee that the two meanings are the same." The primary reason for this being each person has a mental map of their own. As a step towards alleviating some of this difficulty, Bandler and Grinder \shortcite{bandler1975structure} introduce a tool called Meta Model which is a series of questions that seek to reverse and unravel the deletions and distortions and generalizations of language. These questions aim to fill in the missing information, reshape the structure and elicit specific information to make sense of the communication.
+Asking questions is an important aspect of communication. We do not always say everything in detail. According to Gricean pragmatics \cite{}, speakers and listeners adhere to a Cooperative Principle where a speaker communicates information that is as informative as required and not more. This is subjective. Communication is still possible because the listener has the tool of asking questions. By asking questions the listener can elicit information that she thinks is missing. In the field of natural language processing, most previous work on question generation has focused on generating questions whose answers can be found in some aforementioned text. For e.g. generating questions for reading comprehension type of tasks. However there has been little attention paid towards questions that inquire about the missing information in a text. For e.g. consider a post on an online Q \& A forum where a user describes an issue she is facing with an installation on her Ubuntu operating system. A likely question to that post could be \textit{`What version of ubuntu are you using?'}.  Adding the version information could help someone resolve the issue much faster. 
 
-In the field of natural language processing, there is an understanding of the importance of asking questions. However, most previous work has focused on generating questions whose answers can be found in some aforementioned text. An additional important measure of understanding is how well one can generate questions whose answers cannot be found in a given text; i.e. ask questions about missing information. Students are often encouraged to ask questions to be better learners. If we wish to make computers better at understanding a given text, we should also enable them to ask questions about the missing information in the text; a text that was created using a different mental map in mind. Asking such a question is a challenge, even for humans. It requires a compilation of versatile skill-set; two of the important ones being --- learning to ask a question by looking at previously asked questions and a domain understanding of the topic of the text to know what should have been there but is missing. When we are trying to teach a computer to ask such questions, an additional challenge is getting the appropriate data to train a machine learning model. In this work, we take a step forward in this direction by making two main contributions:
+In our work, we ask the following research question: `Can computers learn to ask questions that can help fill in missing information in a given text?'. Asking questions about such missing information is challenging, even for humans. It requires an understanding of what information when added to a given text would increase the utility of the text. When we are trying to teach a computer to ask such questions, an additional challenge is getting the appropriate data to train a machine learning model. In this work, we take a step forward in this direction by making two main contributions:
 \begin{enumerate}
 \item Introduce a dataset of size X using stackexchange.com that fits our problem scenario
-\item Train a neural network model that learns to ask questions to unanswered posts on stackexchange.com
+\item Train a model that learns to ask clarifying questions to unanswered posts on stackexchange.com
 \end{enumerate}
-    
-To create our dataset, we use the data dump from stackexchange.com which is a network of 150+ online question answering communities (including stackoverflow.com, a popular Q\&A forum). Typically, a user posts a question or a concern and other users answer them. However, a lot of these posts remain unanswered. Asaduzzaman et al. \shortcite{asaduzzaman2013answering} say that one of the main reasons for posts remaining unanswered is that they are not clear enough or they are missing some information. Figure 1 shows an example of an unanswered post. These unanswered posts rightly fit our use case of a text with potential missing information that can be filled by asking the right questions. We make the following observation: in several instances, users post comments to a given post asking either for some clarification or for some missing information. Subsequently, the author of the post updates the post adding that piece of missing information. Figure 1 shows an example of such an update. We make use of this observation to create our dataset (Section~\ref{dataset}) of \{\textit{post, question, answer}\} triples; where the \textit{post} is the initial post; the \textit{question} is the question comment on the post, and the \textit{answer} is the update made to the post. Our task is given an unanswered post, ask a question to the post whose answer can add more information to the post. 
 
-To develop our model, we take inspiration from an idea in decision theory called the Value of Perfect Information (VPI). Suppose you have to make a decision to maximize your profit given certain information and you have the option of collecting additional information. VPI measures the worth of collecting this additional information by calculating the difference between the expected profit given the existing information and the expected profit given the existing plus the additional information. A non-zero value of VPI encourages the collection of the additional information. To map this idea to our problem scenario, suppose we have a certain utility of a post. We have to decide whether asking a question to the post is going to increase the utility of the post in expectation. There is uncertainty because a question asked to a post can trigger different answers. We train our model to maximize the expected utility of the post, given the right question. During test time, given an unanswered post and a set of candidate questions, we choose the question that maximizes the expected utility of the post. Owing to the recent successes of neural methods in processing natural language text, we train our model using a neural network framework (described more in Section~\ref{model}). We compare our model with a neural baseline that is trained to select the right question given a post and question candidates (without looking at the utility of the post; if the question was answered). Human judgements on a held out test set of unanswered posts show that our VPI inspired model can learn to ask questions better.
+\begin{figure}[!t]
+\centering
+\includegraphics[scale=0.25]{askubuntu_post}
+\caption{Example post on askubuntu.com}
+\label{askubuntu_post}
+\end{figure}
 
-% we compare our methods to baselines (?)
-% human judgements for evaluation
+Stackexchange.com is a network of 150+ online question answering communities (including stackoverflow.com, a popular Q\&A forum). Typically, a user posts a question or a concern and other users answer them. However, a lot of these posts remain unanswered. Asaduzzaman et al. \shortcite{asaduzzaman2013answering} say that one of the main reasons for posts remaining unanswered is that they are not clear enough or they are missing some information. Figure 1 shows an example of an unanswered post. These unanswered posts rightly fit our use case of a text with potential missing information that can be filled by asking the right questions. Thus we define our task as given an unanswered post, ask a clarifying question to the post. 
+
+To create our dataset we make the following observation: in several instances, users comment on a given post asking either for some clarification or for some missing information. Subsequently, the author of the post updates the post by adding that piece of missing information. Figure 1 shows an example of such an update. We make use of such updated posts to create our dataset (Section~\ref{dataset}) of \{\textit{post, question, answer}\} triples; where the \textit{post} is the initial post; the \textit{question} is the question comment on the post, and the \textit{answer} is the update made to the post. 
+
+Given a post, we generate question candidates by looking at questions that were asked to posts similar to the given post (Section~\ref{generate_question_candidates}). To identify the most relevant question from the question candidates we take inspiration from an idea in decision theory called the Value of Perfect Information (VPI). VPI measures the worth of gathering additional information. We use this idea in our problem scenario to calculate which question asked to a post when answered would increase the value of the post. We train our model using a neural network framework (described more in Section~\ref{model}) to minimize an objective function defined using VPI. We compare our model with a neural baseline that is trained to select the right question given a post and question candidates; without generating an answer for the question. Human judgements on a held out test set of unanswered posts show that our VPI inspired model can learn to ask questions better.
 
 \iffalse
-- a question can have many answers, we don't know what the answer is, but we know that information is missing
-- neural models for machine comprehension (neural readers)
-- explain how is VPI calculated 
-- model that calculates the utility of the post -- we can use a large set of updated vs non-updated posts
-- cite regina's work - best matching algorithm (BM25) from information retrieval to get similar posts
-- we show that we can train two different models when we have varied amount of training data? (ask Hal)
-- Using this idea we make the decision of whether to ask a question or not and the decision of which question when answered would increase the expected utility of a given text; where the expectation is over all possible answers to the question. 
-
-
-- We model our task as whether we can ask such clarifying questions to the post.  We pick the question that maximizes the expected utility of the post
-- We take inspiration from value of perfect information in AI and introduce a neural network model 
+-- we show that we can train two different models when we have varied amount of training data? (ask Hal)
 \fi
 
 \section{Dataset creation}\label{dataset}
 
-Stackexchange.com is a network of online question answering websites about topics in varied fields. The sites are modeled after stackoverflow.com. The data dump of stackexchange.com contains timestamped information about the posts, comments on the post and the history of the revisions made to the post among other things. The word posts, in this case, refers to both the questions and the answers. To create our dataset, we identify those posts which contain questions in their comments and have subsequent updates addressing the questions. Among the several comments made to a post, we extract those that represent a question. Users make edits to their posts for different reasons; including stylistic updates and grammatical corrections. We use heuristics (Section~\ref{}) to filter out the edits that have substantial content in them. Finally, we find a one-to-one match between the question comments and the different edits using timestamp information and a text similarity measure (Section~\ref{}). Thus we create our dataset of \{\textit{post, question, answer}\} triples; where the \textit{post} is the initial unedited post, the \textit{question} is the comment containing a question and the \textit{answer} is the edit made to the post that matches the question comment. 
+Stackexchange.com is a network of online question answering websites about topics in varied fields. The sites are modeled after stackoverflow.com. The data dump of stackexchange.com contains timestamped information about the posts, comments on the post and the history of the revisions made to the post among other things. Our dataset consists of \{\textit{post, question, answer}\} triples: where the \textit{post} is the initial unedited post, the \textit{question} is the comment containing a question and the \textit{answer} is the edit made to the post that matches the question comment. We create the triples from the data dump as follows:
+\begin{enumerate}
+\item We use the post histories to identify posts that have been updated by its author. We use the timestamp information to retrieve the initial unedited version of a post.
+\item Among the several comments made to a post, we extract those that have the question mark `?' token in them. We truncate the comment only till the question mark token to retrieve the question part of the comment.  
+\item The final step is to identify the edit made to the post in response to the question comment. Authors make edits to their posts for several reasons; including stylistic updates and grammatical corrections. We use heuristics (Section~\ref{}) to first filter out the edits that have substantial content in them. We then use the timestamp information and a text similarity measure (Section~\ref{}) to match the edits to their respective question comments.
+\end{enumerate}
 
-To identify potential question candidates for a post, we use the intuition that questions asked to posts that are similar to a given post can be potential candidate questions to the given post as well. We identify similar posts using BM25 \cite{robertson2009probabilistic}, a ranking algorithm used extensively in information retrieval. Given two posts, BM25 gives a similarity score between the two posts. We use this algorithm to find the top 20 most similar posts to a given post from our collection of posts with question comments. We consider the questions asked to these 20 posts as our set of question candidates.
-
-%- cite regina's work - best matching algorithm (BM25) from information retrieval to get similar posts & hence questions to those posts
-
-We use a much larger part of the data dump to train our completeness classifier. We call the set of all the initial unedited posts + all the unanswered posts as our incomplete posts. The updated posts + all the posts without any question comments become our set of complete posts. 
+\begin{figure*}[!t]
+\centering
+\includegraphics[scale=0.40]{model}
+\caption{Three modules of our model: Question candidate generator, Answer generator \& Utility calculator}
+\label{model}
+\end{figure*}
 
 \section{Model description}\label{model}
 
-To develop our model, we make use of the following two key intuitions: (a) we would know what questions to ask to a post, by looking at questions asked to posts similar to this post (b) a question is the right question to a post only if its answer is going to add value to the post. We describe our model using four modules. (1) To decide whether to ask a question to a post or not, we train a classifier  that we call the completeness classifier (Section~\ref{completeness_classifier}) which determines if there is something missing in the post. We use a larger part of our dataset for training this classifier. (2) If a post is incomplete, then we gather question candidates for the post by looking at questions asked to related posts (Section~\ref{question_candidates}). (3) For each of the question candidates, we generate a answer representation using our answer generator (Section~\ref{answer_generator}) which is trained using the \{\textit{post, question, answer}\} triples. (4) Finally we choose the question which maximizes the expected utility of the post, if the question was answered. To train this module we use an idea from decision theory called the Value of Perfect Information (VPI) which measures the worth of collecting additional information. 
+Our goal is to develop a model that can learn to ask questions to unanswered posts such that the answers to the questions would add information that is currently missing from the post. We take inspiration from an idea in decision theory called the \textbf{Expected Value of Perfect Information (EVPI)}. Consider a scenario of decision-making aimed at maximizing a certain profit. Suppose we can calculate the expected profit given some information $e$. EVPI measures the worth of collecting additional information $e'$ by calculating the difference between the expected profit given $e$ and the expected profit given $e$ and $e'$. A non-zero value of VPI encourages the collection of the additional information. More formally, EVPI is defined as:\\
 
-\subsection{Completeness classifier}
-Our completeness classifier determines if question is to be asked to a post or not. During test time, given an unanswered post, we pass it through our completeness classifier and only if the classifier classifies it as incomplete we go on to our next modules. We train our classifier using the long short-term memory architecture (LSTM) \cite{hochreiter1997long}. Each training sample consists of a sequence of word embeddings of the words in the post and a binary label of whether the post is complete or not. These labels are assigned using the strategy described in Section~\ref{dataset}. We obtain a word embedding for each word in our vocabulary using the word2vec \cite{mikolov2013efficient} model trained on the entire data dump of stackexchange.com. 
-The output of the hidden layer of the LSTM is passed through 
+$EVPI(e') = EV(e| e') - EV(e)$ \\
+where;
+\begin{center}
+\begin{tabular} {r  l}
+$EV$: & Expected Value \\
+$e$: & Given information \\
+$e'$: & Additional information \\
+\end{tabular}
+\end{center}
 
-\subsection{Generate question candidates}
+To map this idea to our problem scenario, suppose we have a certain utility of a post. We have to decide whether asking a question to the post is going to increase the utility of the post. There is uncertainty because a question asked to a post can elicit many different answers. Hence we calculate, in expectation, which question among a set of candidate questions will elicit an answer that would maximize the utility of the given post. 
 
-\subsection{Answer generator}
+More formally, we train our model using following objective function:\\
 
-\subsection{}
+$ max_{q \in Q}  E_{a \sim Pr(a|p,q)} U(p+a)$ \\
+
+Given a post $p$, the objective is to select a question $q$ from a set of candidate questions $Q$ such that, an answer $a$ given to the question $q$ would maximize the expected utility of the updated post $U(p+a)$. There are three important pieces to this equation:
+\begin{enumerate}
+\item Given a post $p$, generate question candidates $Q$ to select a question $q$ from
+\item Given a post $p$ and a question $q$, get an answer representation $a$
+\item Given an updated post $(p+a)$, calculate the utility of the post 
+\end{enumerate}
+
+%During test time, given an unanswered post and a set of candidate questions, we choose the question that maximizes the expected utility of the updated post (once the question is answered). 
+
+
+\subsection{Generate question candidates}\label{generate_question_candidates}
+
+One way that humans learn to ask questions is by looking at how others ask questions in a similar situation. Using this intuition we generate question candidates for a given post by identifying posts similar to a given post and then looking at the questions asked to those posts. For identifying similar posts, we use Lucene, a software widely used in information retrieval 
+
+We use this intuition to identify potential question candidates for a given post. 
+Using the same intuition, Questions asked to posts similar to a given post can be potential question candidates for the given post. 
+
+ We use this algorithm to find the top 20 most similar posts to a given post from the posts in our dataset (Section~\ref{dataset}). We consider the questions asked to these 20 posts as our set of question candidates. 
+%- cite regina's work - best matching algorithm (BM25) from information retrieval to get similar posts & hence questions to those posts
+
+\subsection{Generate answer given post and question}
+
+Given a post and a question, there can be several different answers to that question. For e.g. in Figure 1, the question \textit{`Which field are you in?'} can elicit different answers. We therefore want to train a model that learns to generate an answer representation that captures this high-level category of missing information. To train our model we use our dataset of \{\textit{post, question, answer}\} triples (Section~\ref{dataset}). For every post $p_i$, we retrieve 10 similar posts $P_i$ from the dataset using BM25 algorithm (Section~\ref{generate_question_candidates}). During training time, given $\{p_i, q_i, a_i\}$, we use a \textit{post} neural reader, a \textit{question} neural reader and an \textit{answer} neural reader to get their respective neural hidden representations $\{\bar{p_i}, \bar{q_i}, \bar{a_i}\}$.  Given $(\bar{p_i}, \bar{q_i})$, we also define a function $F(\bar{p_i}, \bar{q_i})$ that computes an answer representation from the post and the question. We explain our neural readers and the function $F$ shortly (Section~\ref{neural_readers}). The parameters of all three neural readers and $F$ is learned jointly by minimizing the following objective function:\\
+
+$\sum_i ( {|| F(\bar{p_i}, \bar{q_i}) - \bar{a_i}||}^2 +
+ \sum_{j \in P_i} ( {|| F(\bar{p_i, \bar{q_i}}) - \bar{a_j} ||}^2  - {|| \bar{q_i} - \bar{q_j} ||}^2))$\\
+
+The first term forces the function $F$ to generate an answer representation as close as possible to the correct answer $a_i$. The second term exploits the fact that a question can be asked in several different ways. If a question $q_j$ asked to one of the posts $p_j$ similar to post $p_i$ is close to the question $q_i$, then the answer representation generated by function $F$ should also be close to the answer $a_j$ given to the question $q_j$ on the post $p_j$.
+
+\subsection{Calculate utility of a post}
+
+We measure the utility of a post in terms of its completeness. We define the utility function as $U(\bar{p_i}) = [0, 1]$; where a value close to 0 indicates incompleteness and a value close to 1 indicates completeness. To train this model we use a much larger part of the stackexchange.com data dump along with our dataset (Section~\ref{dataset}). We label all the initial unedited posts in our dataset with label 0 and all the updated posts with label 1. Additionally, we label all the unanswered posts in the data dump with label 0 and all the the posts without any question comment in them with label 1. Given a post $p_i$, we use our neural reader (Section~\ref{neural_readers}) to get a post representation $\bar{p_i}$. We train the parameters of our neural reader to minimize the binary cross-entropy between the $sigmoid(\bar{p_i})$ and the label of $p_i$, for all labelled posts. 
+
+\subsection{Our neural reader}\label{neural_readers}
+
+%cite neural readers
+The term neural reader is being used increasingly these days to denote a neural network model (like RNN, LSTM, CNN) and its variations (using attention, etc) that is tasked with reading of words in a text and coming up with a representation that helps attain a given goal. Given a sequence of words in a post, a question or an answer, our neural reader uses the long short-term memory architecture (LSTM) \cite{hochreiter1997long} to generate its neural representation. We initialize the word embeddings of each word in our vocabulary using the word2vec \cite{mikolov2013efficient} model trained on the entire data dump of stackexchange.com. We train our neural readers using different objective functions described in previous sections. 
 
 \section{Evaluation method}
 %- intrinsic evaluation
 % extrinsic evaluation using human judgements
 
 \section{Baseline methods}
+
+\subsection{Bag of words baseline}
+
+\subsection{Neural baseline}
 
 \section{Experiments and Results}\label{experiments_results}
 
@@ -174,9 +225,6 @@ Bootstrapping semantic parsing from conversations
 - Their work is at the sentence level; ours is at discourse level. Also our work is for asking questions about missing information instead of clarification
 
 Work that has used Stackexchange.com data before
-
-
-
 
 \fi
 \bibliography{question_generation}
