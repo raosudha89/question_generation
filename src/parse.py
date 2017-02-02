@@ -9,10 +9,11 @@ from helper import *
 
 class Post:
 
-	def __init__(self, title, body, typeId):
+	def __init__(self, title, body, sents, typeId):
 		self.title = title
 		self.body = body
-		self.typeId = typeId
+		self.sents = sents
+		self.typeId = typeId	
 
 class PostParser:
 	
@@ -30,7 +31,8 @@ class PostParser:
 			except:
 				title = []
 			body = get_tokens(post.attrib['Body'])
-			self.posts[postId] = Post(title, body, postTypeId)
+			sent_tokens = get_sent_tokens(post.attrib['Body'])
+			self.posts[postId] = Post(title, body, sent_tokens, postTypeId)
 
 	def get_posts(self):
 		return self.posts
@@ -86,6 +88,7 @@ class CommentParser:
 class PostHistory:
 	def __init__(self):
 		self.initial_post = None
+		self.initial_post_sents = None
 		self.edited_post = None
 		self.edit_comment = None
 		self.edit_date = None
@@ -103,6 +106,7 @@ class PostHistoryParser:
 			postId = posthistory.attrib['PostId']
 			if posthistory_typeid == '2':
 				self.posthistories[postId].initial_post = get_tokens(posthistory.attrib['Text'])
+				self.posthistories[postId].initial_post_sents = get_sent_tokens(posthistory.attrib['Text'])
 			elif posthistory_typeid == '5':
 				self.posthistories[postId].edited_post = get_tokens(posthistory.attrib['Text'])
 				self.posthistories[postId].edit_comment = get_tokens(posthistory.attrib['Comment'])

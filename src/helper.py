@@ -1,5 +1,6 @@
 import sys
 from nltk.tokenize import word_tokenize
+from nltk.tokenize import sent_tokenize
 import nltk
 nltk.download('punkt')
 import numpy as np
@@ -7,9 +8,15 @@ from BeautifulSoup import BeautifulSoup
 
 def get_tokens(text):
 	text = BeautifulSoup(text.encode('utf-8').decode('ascii', 'ignore')).text
-	#text = text.replace(')', '').replace('(', '')
-	#text = text.replace(']', '').replace('[', '')
 	return word_tokenize(str(text).lower())
+
+def get_sent_tokens(text):
+	text = BeautifulSoup(text.encode('utf-8').decode('ascii', 'ignore')).text
+	sents = sent_tokenize(str(text))
+	sent_tokens = [None]*len(sents)
+	for i, sent in enumerate(sents):
+		sent_tokens[i] = get_tokens(sent)
+	return sent_tokens
 
 def get_indices(tokens, vocab):
 	indices = np.zeros([len(tokens)], dtype=np.int32)

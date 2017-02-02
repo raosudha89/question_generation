@@ -5,8 +5,9 @@ from difflib import SequenceMatcher
 
 class PostQuesAns:
 
-	def __init__(self, post, question_comment, answer):
+	def __init__(self, post, post_sents, question_comment, answer):
 		self.post = post
+		self.post_sents = post_sents
 		self.question_comment = question_comment
 		self.answer = answer
 
@@ -70,7 +71,7 @@ class PostQuesAnsGenerator:
 			question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
 			if not question:
 				continue
-			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, question, answer)
+			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question, answer)
 		return self.post_ques_ans_dict
 
 

@@ -49,6 +49,17 @@ def iterate_minibatches(posts, post_masks, questions, question_masks, answers, a
 			excerpt = slice(start_idx, start_idx + batch_size)
 		yield posts[excerpt], post_masks[excerpt], questions[excerpt], question_masks[excerpt], answers[excerpt], answer_masks[excerpt]
 
+def iterate_minibatches_v2(posts, post_masks, questions, question_masks, batch_size, shuffle=False):
+	if shuffle:
+		indices = np.arange(len(posts))
+		np.random.shuffle(indices)
+	for start_idx in range(0, len(posts) - batch_size + 1, batch_size):
+		if shuffle:
+			excerpt = indices[start_idx:start_idx + batch_size]
+		else:
+			excerpt = slice(start_idx, start_idx + batch_size)
+		yield posts[excerpt], post_masks[excerpt], questions[excerpt], question_masks[excerpt]
+
 def swap(a, b):
 	return b, a
 
@@ -59,7 +70,7 @@ def shuffle_questions(question_list, question_mask_list, label_list):
 	label_list[0], label_list[rand_i] = swap(label_list[0], label_list[rand_i])
 	return question_list, question_mask_list, label_list
 
-def validate(val_fn, fold_name, epoch, fold, batch_size):
+def validate(train_fn, fold_name, epoch, fold, batch_size):
 	start = time.time()
 	num_batches = 0.
 	cost = 0.
@@ -82,7 +93,7 @@ def validate(val_fn, fold_name, epoch, fold, batch_size):
 		for i in range(N):
 			a_list[i] = a[:,i].astype('int32')
 			am_list[i] = am[:,i].astype('float32')
-		out = val_fn(p, pm, q_list, qm_list, a_list, am_list)
+		out = train_fn(p, pm, q_list, qm_list, a_list, am_list)
 		loss = out[0]
 		errors = np.array(out[1:])
 		for i in range(len(p)):
@@ -95,6 +106,39 @@ def validate(val_fn, fold_name, epoch, fold, batch_size):
 				(fold_name, epoch, cost / num_batches, corr*1.0/total, time.time()-start)
 	print lstring
 
+def get_predicted_answers(dev_fn, fold, batch_size, hidden_dim):
+	start = time.time()
+	num_batches = 0.
+	posts, post_masks, questions_list, question_masks_list = fold
+	N = len(questions_list[0])
+	pred_answers_list = None
+	pred_answer_posts = None
+	pred_answer_post_masks = None
+	k = 0
+	for p, pm, q, qm in iterate_minibatches_v2(posts, post_masks, questions_list, question_masks_list, \
+												batch_size, shuffle=False):
+		p = p.astype('int32')
+		pm = pm.astype('float32')
+		q_list = np.empty([N, q.shape[0], q.shape[2]], dtype=np.int32)
+		qm_list = np.empty([N, qm.shape[0], qm.shape[2]], dtype=np.float32)
+		for i in range(N):
+			q_list[i] = q[:,i].astype('int32')
+			qm_list[i] = qm[:,i].astype('float32')
+		a_list = dev_fn(p, pm, q_list, qm_list)
+		assert(len(p) == len(a_list[0]))
+		if k == 0:
+			pred_answers_list = a_list
+			pred_answer_posts = p
+			pred_answer_post_masks = pm
+		else:
+			pred_answers_list = np.concatenate((pred_answers_list, a_list), axis=1)
+			pred_answer_posts = np.concatenate((pred_answer_posts, p), axis=0)
+			pred_answer_post_masks = np.concatenate((pred_answer_post_masks, pm), axis=0)
+		k += len(p)
+		assert(len(pred_answer_posts) == len(pred_answers_list[0]))
+	print len(pred_answer_posts), len(pred_answers_list[0])
+	return pred_answers_list, pred_answer_posts, pred_answer_post_masks
+
 def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, N, post_max_len, question_max_len, answer_max_len, batch_size, learning_rate, rho, freeze=False):
 
 	# input theano vars
@@ -104,7 +148,6 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, N, post_max_l
 	question_masks_list = T.ftensor3(name='question_mask_list')
 	answers_list = T.itensor3(name='answer_list')
 	answer_masks_list = T.ftensor3(name='answer_mask_list')
-	labels = T.imatrix(name='labels')
  
 	# define network
 	l_post_in = lasagne.layers.InputLayer(shape=(batch_size, post_max_len), input_var=posts)
@@ -243,16 +286,16 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, hidden_dim, N, post_max_l
 		errors[i] = T.sum(lasagne.objectives.squared_error(pred_answer_out[i], answer_out[i]), axis=1)
 
 	loss = T.sum(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[0]))
-	for i in range(1, N):
-		loss += T.sum(abs(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[i]) - lasagne.objectives.squared_error(question_out[0], question_out[i])))
+	#for i in range(1, N):
+	#	loss += T.sum(abs(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[i]) - lasagne.objectives.squared_error(question_out[0], question_out[i])))
 
 	loss += rho * sum(T.sum(l ** 2) for l in all_params)
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=learning_rate)
 	train_fn = theano.function([posts, post_masks, questions_list, question_masks_list, answers_list, answer_masks_list], \
 							   [loss] + errors, updates=updates)
-	val_fn = theano.function([posts, post_masks, questions_list, question_masks_list, answers_list, answer_masks_list], \
-							   [loss] + errors)
-	return train_fn, val_fn
+	dev_fn = theano.function([posts, post_masks, questions_list, question_masks_list], \
+							   pred_answer_out)
+	return train_fn, dev_fn
 
 def main(args):
 	post_vectors = p.load(open(args.post_vectors, 'rb'))
@@ -276,21 +319,24 @@ def main(args):
 
 	t_size = int(len(posts)*0.8)
 	train = [posts[:t_size], post_masks[:t_size], questions_list[:t_size,:N], question_masks_list[:t_size,:N], answers_list[:t_size,:N], answer_masks_list[:t_size,:N]]
-	dev = [posts[t_size:], post_masks[t_size:], questions_list[t_size:,:N], question_masks_list[t_size:,:N], answers_list[t_size:,:N], answer_masks_list[t_size:,:N]]
+	dev = [posts[t_size:], post_masks[t_size:], questions_list[t_size:,:N], question_masks_list[t_size:,:N]]
 
 	print 'Size of training data: ', t_size
 	print 'Size of dev data: ', len(posts)-t_size
 
 	start = time.time()
 	print 'compiling graph...'
-	train_fn, val_fn = build_lstm(word_embeddings, vocab_size, word_emb_dim, args.hidden_dim, N, args.post_max_len, args.question_max_len, args.answer_max_len, args.batch_size, args.learning_rate, args.rho, freeze=freeze)
+	train_fn, dev_fn = build_lstm(word_embeddings, vocab_size, word_emb_dim, args.hidden_dim, N, args.post_max_len, args.question_max_len, args.answer_max_len, args.batch_size, args.learning_rate, args.rho, freeze=freeze)
 	print 'done! Time taken: ', time.time()-start
 	
 	# train network
 	for epoch in range(args.no_of_epochs):
-
 		validate(train_fn, 'Train', epoch, train, args.batch_size)
-		validate(val_fn, '\t DEV', epoch, dev, args.batch_size)
+		if epoch == args.no_of_epochs-1:
+			pred_answers, pred_answer_posts, pred_answer_post_masks = get_predicted_answers(dev_fn, dev, args.batch_size, args.hidden_dim)
+			p.dump(pred_answers, open(args.pred_ans_list_vectors, 'wb'))
+			p.dump(pred_answer_posts, open(args.pred_ans_post_vectors, 'wb'))
+			p.dump(pred_answer_post_masks, open(args.pred_ans_post_mask_vectors, 'wb'))
 		print "\n"
 
 if __name__ == '__main__':
@@ -305,9 +351,12 @@ if __name__ == '__main__':
 	argparser.add_argument("--learning_rate", type = float, default = 0.001)
 	argparser.add_argument("--rho", type = float, default = 1e-5)
 	argparser.add_argument("--post_max_len", type = int, default = 100)
-	argparser.add_argument("--question_max_len", type = int, default = 20)
-	argparser.add_argument("--answer_max_len", type = int, default = 20)
+	argparser.add_argument("--question_max_len", type = int, default = 10)
+	argparser.add_argument("--answer_max_len", type = int, default = 100)
 	argparser.add_argument("--no_of_candidates", type = int, default = 5)
+	argparser.add_argument("--pred_ans_list_vectors", type = str)
+	argparser.add_argument("--pred_ans_post_vectors", type = str)
+	argparser.add_argument("--pred_ans_post_mask_vectors", type = str)
 	args = argparser.parse_args()
 	print args
 	print ""
