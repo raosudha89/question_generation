@@ -55,11 +55,8 @@ class PostQuesAnsGenerator:
 		for postId, posthistory in posthistories.iteritems():
 			if not posthistory.edited_post:
 				continue
-			#try:
-			#	if posts[postId].typeId != '1': # is not a main post
-			#		continue
-			#except:
-			#	continue
+			if posts[postId].typeId != 1: # is not a main post
+				continue
 			if not posthistory.initial_post:
 				continue
 			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)

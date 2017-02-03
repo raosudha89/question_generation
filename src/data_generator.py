@@ -10,23 +10,30 @@ import cPickle as p
 import pdb
 import random
 
-def generate_utility_vectors(posts, posthistories, vocab, args):
-	N = len(posts) + len(posthistories)
-	post_vectors = [None]*N
-	labels = [0]*N
-	i = 0
+def generate_utility_vectors(posts, posthistories, post_ques_answers, vocab, args):
+	post_vectors = []
+	post_sent_vectors = []
+	labels = []
 	for postId in posts:
 		if postId in posthistories:
-			post_vectors[i] = get_indices(posts[postId].title + posthistories[postId].initial_post, vocab)
-			i += 1
-			post_vectors[i] = get_indices(posts[postId].title + posthistories[postId].edited_post, vocab)
-			labels[i] = 1
-			i += 1
+			if postId in post_ques_answers:
+				post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
+				post_sent_vectors.append(get_sent_vectors(posts[postId].title + post_ques_answers[postId].post, vocab))
+				labels.append(0)
+				post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post + post_ques_answers[postId].answer, vocab))
+				post_sent_vectors.append(get_sent_vectors(posts[postId].title + post_ques_answers[postId].post + post_ques_answers[postId].answer, vocab))
+				labels.append(1)
 		else:
-			post_vectors[i] = get_indices(posts[postId].title + posts[postId].body, vocab)
-			labels[i] = 1
-			i += 1
+			if posts[postId].typeId == 1: #only main posts
+				post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
+				post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
+				if posts[postId].accepted_answerId == None or posts[postId].answer_count == 0:
+					labels.append(0)
+				else:
+					labels.append(1)
+	print "Size: ", len(post_vectors)
 	p.dump(post_vectors, open(args.utility_post_vectors, 'wb'))
+	p.dump(post_sent_vectors, open(args.utility_post_sent_vectors, 'wb'))
 	p.dump(labels, open(args.utility_labels, 'wb'))
 
 def get_sent_vectors(sents, vocab):
@@ -71,6 +78,7 @@ def get_similar_posts(lucene_similar_posts):
 def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args):
 	lucene_similar_posts = get_similar_posts(lucene_similar_posts)
 	post_vectors = []
+	post_sent_vectors = []
 	ques_list_vectors = []
 	ans_list_vectors = []
 	N = args.no_of_candidates
@@ -79,6 +87,7 @@ def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args
 		if len(candidate_postIds) < N:
 			continue
 		post_vectors.append(get_indices(post_ques_answers[postId].post, vocab))
+		post_sent_vectors.append(get_sent_vectors(post_ques_answers[postId].post_sents, vocab))
 		ques_list = [None]*N
 		ans_list = [None]*N
 		for j in range(N):
@@ -87,7 +96,9 @@ def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args
 		ques_list_vectors.append(ques_list)
 		ans_list_vectors.append(ans_list)
 
+	print "Size: ", len(post_vectors)
 	p.dump(post_vectors, open(args.post_vectors, 'wb'))
+	p.dump(post_sent_vectors, open(args.post_sent_vectors, 'wb'))
 	p.dump(ques_list_vectors, open(args.ques_list_vectors, 'wb'))
 	p.dump(ans_list_vectors, open(args.ans_list_vectors, 'wb'))
 
@@ -99,11 +110,10 @@ def write_data_log(post_ques_answers, lucene_similar_posts, args):
 		candidate_postIds = lucene_similar_posts[postId][:N]
 		if len(candidate_postIds) < N:
 			continue
+		out_file.write("Id: " + str(postId) + '\n')
 		out_file.write("Post: " + ' '.join(post_ques_answers[postId].post) + '\n\n')
 		for j in range(N):
-			out_file.write("Post: " + ' '.join(post_ques_answers[candidate_postIds[j]].post) + '\n')
 			out_file.write("Question: " + ' '.join(post_ques_answers[candidate_postIds[j]].question_comment) + '\n')
-			out_file.write("Answer: " + ' '.join(post_ques_answers[candidate_postIds[j]].answer) + '\n\n')
 		out_file.write('\n\n')
 
 def generate_docs_for_lucene(post_ques_answers, posts, output_dir):
@@ -119,6 +129,7 @@ def main(args):
 	post_parser = PostParser(args.posts_xml)
 	post_parser.parse()
 	posts = post_parser.get_posts()
+	print 'Size: ', len(posts)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -127,6 +138,7 @@ def main(args):
 	posthistory_parser = PostHistoryParser(args.posthistory_xml)
 	posthistory_parser.parse()
 	posthistories = posthistory_parser.get_posthistories()
+	print 'Size: ', len(posthistories)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -137,10 +149,11 @@ def main(args):
 	print
 	
 	start_time = time.time()
-	print 'Parsing comments...'
+	print 'Parsing question comments...'
 	comment_parser = CommentParser(args.comments_xml)
 	comment_parser.parse()
 	question_comments = comment_parser.get_question_comments()
+	print 'Size: ', len(question_comments)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -155,6 +168,7 @@ def main(args):
 	print 'Generating post_ques_ans...'
 	post_ques_ans_generator = PostQuesAnsGenerator()
 	post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, posthistories, vocab, word_embeddings)
+	print 'Size: ', len(post_ques_answers)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 	
@@ -169,7 +183,7 @@ def main(args):
 
 	start_time = time.time()
 	print 'Generating utility vectors'
-	generate_utility_vectors_v2(posts, post_ques_answers, args.lucene_similar_posts, vocab, args)
+	generate_utility_vectors(posts, posthistories, post_ques_answers, vocab, args)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -185,11 +199,12 @@ if __name__ == "__main__":
 	argparser.add_argument("--comments_xml", type = str)
 	argparser.add_argument("--posthistory_xml", type = str)
 	argparser.add_argument("--post_vectors", type = str)
+	argparser.add_argument("--post_sent_vectors", type = str)
 	argparser.add_argument("--ques_list_vectors", type = str)
 	argparser.add_argument("--ans_list_vectors", type = str)
 	argparser.add_argument("--utility_post_vectors", type = str)
-	argparser.add_argument("--utility_labels", type = str)
 	argparser.add_argument("--utility_post_sent_vectors", type = str)
+	argparser.add_argument("--utility_labels", type = str)
 	argparser.add_argument("--utility_ans_list_vectors", type = str)
 	argparser.add_argument("--lucene_docs_dir", type = str)	
 	argparser.add_argument("--lucene_similar_posts", type = str)

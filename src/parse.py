@@ -9,11 +9,13 @@ from helper import *
 
 class Post:
 
-	def __init__(self, title, body, sents, typeId):
+	def __init__(self, title, body, sents, typeId, accepted_answerId, answer_count):
 		self.title = title
 		self.body = body
 		self.sents = sents
-		self.typeId = typeId	
+		self.typeId = typeId
+		self.accepted_answerId = accepted_answerId
+		self.answer_count = answer_count
 
 class PostParser:
 	
@@ -25,14 +27,22 @@ class PostParser:
 		posts_tree = ET.parse(self.filename)
 		for post in posts_tree.getroot():
 			postId = post.attrib['Id']
-			postTypeId = post.attrib['PostTypeId']
+			postTypeId = int(post.attrib['PostTypeId'])
+			try:
+				accepted_answerId = post.attrib['AcceptedAnswerId']
+			except:
+				accepted_answerId = None #non-main posts & unanswered posts don't have accepted_answerId
+			try:
+				answer_count = int(post.attrib['AnswerCount'])
+			except:
+				answer_count = None #non-main posts don't have answer_count
 			try:
 				title = get_tokens(post.attrib['Title'])
 			except:
 				title = []
 			body = get_tokens(post.attrib['Body'])
 			sent_tokens = get_sent_tokens(post.attrib['Body'])
-			self.posts[postId] = Post(title, body, sent_tokens, postTypeId)
+			self.posts[postId] = Post(title, body, sent_tokens, postTypeId, accepted_answerId, answer_count)
 
 	def get_posts(self):
 		return self.posts
