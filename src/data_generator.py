@@ -10,7 +10,7 @@ import cPickle as p
 import pdb
 import random
 
-def generate_utility_vectors(posts, posthistories, post_ques_answers, vocab, args):
+def generate_utility_vectors(posts, posthistories, post_ques_answers, users, junior_max_rep, senior_min_rep, vocab, args):
 	post_vectors = []
 	post_sent_vectors = []
 	labels = []
@@ -25,11 +25,19 @@ def generate_utility_vectors(posts, posthistories, post_ques_answers, vocab, arg
 				labels.append(1)
 		else:
 			if posts[postId].typeId == 1: #only main posts
-				post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
-				post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
-				if posts[postId].accepted_answerId == None or posts[postId].answer_count == 0:
+				if not posts[postId].owner_userId: #author ID missing
+					continue
+				#posts that don't get a response and are written by "junior SE users"
+				if posts[postId].answer_count == 0 and users[posts[postId].owner_userId].reputation < junior_max_rep:
+					post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
+					post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
 					labels.append(0)
-				else:
+				#posts that DO get a response and are written by "senior SE users"
+				if posts[postId].accepted_answerId != None and \
+						posts[postId].answer_count > 0 and \
+							users[posts[postId].owner_userId].reputation > senior_min_rep:
+					post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
+					post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
 					labels.append(1)
 	print "Size: ", len(post_vectors)
 	p.dump(post_vectors, open(args.utility_post_vectors, 'wb'))
@@ -42,28 +50,6 @@ def get_sent_vectors(sents, vocab):
 		sent_vectors[i] = get_indices(sent, vocab)
 	return sent_vectors
 
-def generate_utility_vectors_v2(posts, post_ques_answers, lucene_similar_posts, vocab, args):
-	lucene_similar_posts = get_similar_posts(lucene_similar_posts)
-	post_vectors = []
-	post_sent_vectors = []
-	ans_list_vectors = []
-	N = args.no_of_candidates
-	for postId in post_ques_answers:
-		post_vector = get_indices(posts[postId].title + post_ques_answers[postId].post, vocab)
-		post_sent_vector = get_sent_vectors(posts[postId].title + post_ques_answers[postId].post_sents, vocab)
-		ans_list_vector = [None]*N
-		candidate_postIds = lucene_similar_posts[postId][:N]
-		if len(candidate_postIds) < N:
-			continue
-		for j, candidate_postId in enumerate(candidate_postIds):
-			ans_list_vector[j] = get_indices(post_ques_answers[candidate_postId].answer, vocab) 
-		post_vectors.append(post_vector)
-		post_sent_vectors.append(post_sent_vector)
-		ans_list_vectors.append(ans_list_vector)
-	p.dump(post_vectors, open(args.utility_post_vectors, 'wb'))
-	p.dump(post_sent_vectors, open(args.utility_post_sent_vectors, 'wb'))
-	p.dump(ans_list_vectors, open(args.utility_ans_list_vectors, 'wb'))
-
 def get_similar_posts(lucene_similar_posts):
 	lucene_similar_posts_file = open(lucene_similar_posts, 'r')
 	similar_posts = {}
@@ -75,7 +61,7 @@ def get_similar_posts(lucene_similar_posts):
 			similar_posts[parts[0]] = []
 	return similar_posts
 
-def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args):
+def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, vocab, args):
 	lucene_similar_posts = get_similar_posts(lucene_similar_posts)
 	post_vectors = []
 	post_sent_vectors = []
@@ -86,8 +72,8 @@ def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args
 		candidate_postIds = lucene_similar_posts[postId][:N]
 		if len(candidate_postIds) < N:
 			continue
-		post_vectors.append(get_indices(post_ques_answers[postId].post, vocab))
-		post_sent_vectors.append(get_sent_vectors(post_ques_answers[postId].post_sents, vocab))
+		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
+		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[postId].post_sents, vocab))
 		ques_list = [None]*N
 		ans_list = [None]*N
 		for j in range(N):
@@ -102,7 +88,7 @@ def generate_neural_vectors(post_ques_answers, lucene_similar_posts, vocab, args
 	p.dump(ques_list_vectors, open(args.ques_list_vectors, 'wb'))
 	p.dump(ans_list_vectors, open(args.ans_list_vectors, 'wb'))
 
-def write_data_log(post_ques_answers, lucene_similar_posts, args):
+def write_data_log(post_ques_answers, posts, lucene_similar_posts, args):
 	lucene_similar_posts = get_similar_posts(lucene_similar_posts)
 	out_file = open(os.path.join(os.path.dirname(args.post_vectors), "lucene_post_ques_ans_list.log"), 'w') 
 	N = args.no_of_candidates
@@ -111,7 +97,7 @@ def write_data_log(post_ques_answers, lucene_similar_posts, args):
 		if len(candidate_postIds) < N:
 			continue
 		out_file.write("Id: " + str(postId) + '\n')
-		out_file.write("Post: " + ' '.join(post_ques_answers[postId].post) + '\n\n')
+		out_file.write("Post: " + ' '.join(posts[postId].title) + ' '.join(post_ques_answers[postId].post) + '\n\n')
 		for j in range(N):
 			out_file.write("Question: " + ' '.join(post_ques_answers[candidate_postIds[j]].question_comment) + '\n')
 		out_file.write('\n\n')
@@ -152,8 +138,9 @@ def main(args):
 	print 'Parsing question comments...'
 	comment_parser = CommentParser(args.comments_xml)
 	comment_parser.parse()
-	question_comments = comment_parser.get_question_comments()
-	print 'Size: ', len(question_comments)
+	#question_comments = comment_parser.get_question_comments()
+	question_comment = comment_parser.get_question_comment()
+	print 'Size: ', len(question_comment)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -165,9 +152,19 @@ def main(args):
 	print
 
 	start_time = time.time()
+	print 'Parsing users...'
+	user_parser = UserParser(args.users_xml)
+	user_parser.parse()
+	users = user_parser.get_users()
+	junior_max_reputation, senior_min_reputation = user_parser.get_junior_senior_reputations()
+	print 'Size: ', len(users)
+	print 'Done! Time taken ', time.time() - start_time
+	print
+
+	start_time = time.time()
 	print 'Generating post_ques_ans...'
 	post_ques_ans_generator = PostQuesAnsGenerator()
-	post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, posthistories, vocab, word_embeddings)
+	post_ques_answers = post_ques_ans_generator.generate(posts, question_comment, posthistories, vocab, word_embeddings)
 	print 'Size: ', len(post_ques_answers)
 	print 'Done! Time taken ', time.time() - start_time
 	print
@@ -177,19 +174,19 @@ def main(args):
 
 	start_time = time.time()
 	print 'Generating neural vectors...'	
-	generate_neural_vectors(post_ques_answers, args.lucene_similar_posts, vocab, args)
+	generate_neural_vectors(post_ques_answers, posts, args.lucene_similar_posts, vocab, args)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
 	start_time = time.time()
 	print 'Generating utility vectors'
-	generate_utility_vectors(posts, posthistories, post_ques_answers, vocab, args)
+	generate_utility_vectors(posts, posthistories, post_ques_answers, users, junior_max_reputation, senior_min_reputation, vocab, args)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
 	start_time = time.time()
 	print 'Writing data log...'
-	write_data_log(post_ques_answers, args.lucene_similar_posts, args)
+	write_data_log(post_ques_answers, posts, args.lucene_similar_posts, args)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 
@@ -198,6 +195,7 @@ if __name__ == "__main__":
 	argparser.add_argument("--posts_xml", type = str)
 	argparser.add_argument("--comments_xml", type = str)
 	argparser.add_argument("--posthistory_xml", type = str)
+	argparser.add_argument("--users_xml", type = str)
 	argparser.add_argument("--post_vectors", type = str)
 	argparser.add_argument("--post_sent_vectors", type = str)
 	argparser.add_argument("--ques_list_vectors", type = str)

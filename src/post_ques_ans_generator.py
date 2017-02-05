@@ -62,13 +62,19 @@ class PostQuesAnsGenerator:
 			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)
 			if not answer:
 				continue
-			question_comment_candidates = question_comments[postId]
-			if not question_comment_candidates:
-				continue
-			question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
-			if not question:
-				continue
-			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question, answer)
+			#question_comment_candidates = question_comments[postId]
+			#if not question_comment_candidates:
+			#	continue
+			#question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
+			#if not question:
+			#	continue
+			try:
+				question = question_comments[postId]
+				if not question:
+					continue
+			except:
+				continue 
+			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question.text, answer)
 		return self.post_ques_ans_dict
 
 
