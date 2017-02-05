@@ -206,9 +206,6 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	for i in range(N):
 		errors[i] = T.sum(lasagne.objectives.squared_error(pred_ans_out[i], ans_out[i]), axis=1)
 
-	#for i in range(1, N):
-	#	loss += T.sum(abs(lasagne.objectives.squared_error(pred_answer_out[0], answer_out[i]) - lasagne.objectives.squared_error(question_out[0], question_out[i])))
-
 	loss = T.sum(errors * T.transpose(labels))
 
 	all_sq_errors_flat = [None]*(N*N)
@@ -230,32 +227,49 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	l_utility_post_lstm = [None]*args.post_max_sents
 	utility_post_out = [None]*args.post_max_sents
 
-	#l_utility_post_in[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sents[0])
-	#l_utility_post_mask[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sent_masks[0])
-	#l_utility_post_emb[0] = lasagne.layers.EmbeddingLayer(l_utility_post_in[0], len_voc, word_emb_dim, W=word_embeddings)
-	#l_utility_post_lstm[0] = lasagne.layers.LSTMLayer(l_utility_post_emb[0], args.hidden_dim, mask_input=l_utility_post_mask[0])
+	l_utility_post_in[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sents[0])
+	l_utility_post_mask[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sent_masks[0])
+	l_utility_post_emb[0] = lasagne.layers.EmbeddingLayer(l_utility_post_in[0], len_voc, word_emb_dim, W=word_embeddings)
+	l_utility_post_lstm[0] = lasagne.layers.LSTMLayer(l_utility_post_emb[0], args.hidden_dim, mask_input=l_utility_post_mask[0])
 	for i in range(args.post_max_sents):
 		l_utility_post_in[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sents[i])
 		l_utility_post_mask[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sent_masks[i])
 		l_utility_post_emb[i] = lasagne.layers.EmbeddingLayer(l_utility_post_in[i], len_voc, word_emb_dim, W=word_embeddings)
 
 		l_utility_post_lstm[i] = lasagne.layers.LSTMLayer(l_utility_post_emb[i], args.hidden_dim, mask_input=l_utility_post_mask[i], \
-									ingate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_ingate,\
-																W_hid=l_post_lstm[0].W_hid_to_ingate,\
-																b=l_post_lstm[0].b_ingate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_ingate),\
-									outgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_outgate,\
-																W_hid=l_post_lstm[0].W_hid_to_outgate,\
-																b=l_post_lstm[0].b_outgate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_outgate),\
-									forgetgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_forgetgate,\
-																W_hid=l_post_lstm[0].W_hid_to_forgetgate,\
-																b=l_post_lstm[0].b_forgetgate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_forgetgate),\
-									cell=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_cell,\
-																W_hid=l_post_lstm[0].W_hid_to_cell,\
-																b=l_post_lstm[0].b_cell,\
-																nonlinearity=l_post_lstm[0].nonlinearity_cell),\
+									#ingate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_ingate,\
+									#							W_hid=l_post_lstm[0].W_hid_to_ingate,\
+									#							b=l_post_lstm[0].b_ingate,\
+									#							nonlinearity=l_post_lstm[0].nonlinearity_ingate),\
+									#outgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_outgate,\
+									#							W_hid=l_post_lstm[0].W_hid_to_outgate,\
+									#							b=l_post_lstm[0].b_outgate,\
+									#							nonlinearity=l_post_lstm[0].nonlinearity_outgate),\
+									#forgetgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_forgetgate,\
+									#							W_hid=l_post_lstm[0].W_hid_to_forgetgate,\
+									#							b=l_post_lstm[0].b_forgetgate,\
+									#							nonlinearity=l_post_lstm[0].nonlinearity_forgetgate),\
+									#cell=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_cell,\
+									#							W_hid=l_post_lstm[0].W_hid_to_cell,\
+									#							b=l_post_lstm[0].b_cell,\
+									#							nonlinearity=l_post_lstm[0].nonlinearity_cell),\
+									#peepholes=False,\
+									ingate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_ingate,\
+																W_hid=l_utility_post_lstm[0].W_hid_to_ingate,\
+																b=l_utility_post_lstm[0].b_ingate,\
+																nonlinearity=l_utility_post_lstm[0].nonlinearity_ingate),\
+									outgate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_outgate,\
+																W_hid=l_utility_post_lstm[0].W_hid_to_outgate,\
+																b=l_utility_post_lstm[0].b_outgate,\
+																nonlinearity=l_utility_post_lstm[0].nonlinearity_outgate),\
+									forgetgate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_forgetgate,\
+																W_hid=l_utility_post_lstm[0].W_hid_to_forgetgate,\
+																b=l_utility_post_lstm[0].b_forgetgate,\
+																nonlinearity=l_utility_post_lstm[0].nonlinearity_forgetgate),\
+									cell=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_cell,\
+																W_hid=l_utility_post_lstm[0].W_hid_to_cell,\
+																b=l_utility_post_lstm[0].b_cell,\
+																nonlinearity=l_utility_post_lstm[0].nonlinearity_cell),\
 									peepholes=False,\
 									)
 
@@ -372,9 +386,8 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 	utility_total = 0
 	utility_cost = 0
 	utility_ones = 0
-	_lambda = 0.5
 	N = args.no_of_candidates
-	N_post_sents = args.post_max_sents
+	recall = [0]*N
 	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
 	utility_post_sents, utility_post_sent_masks, utility_labels = utility_fold
 	minibatches = iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, args.batch_size, shuffle=True)
@@ -404,17 +417,21 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			for k in range(N):
 				marginalized_sum = 0.0
 				for m in range(N):
-					marginalized_sum += math.exp(-_lambda * errors[j][k*N+m]) 
+					marginalized_sum += math.exp(-args._lambda * errors[j][k*N+m]) 
 				for m in range(N):
-					utilities[k] += (math.exp(-_lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
-				
+					utilities[k] += (math.exp(-args._lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
+
 				#utilities[k] = preds[j][k*N+k]
 			#pdb.set_trace()
 			if np.argmax(utilities) == np.argmax(l[j]) or utilities[np.argmax(utilities)] == utilities[np.argmax(l[j])]:
 				corr += 1
-				mrr += 1.0
+				rank = 1
 			else:
-				mrr += 1.0/(get_rank(utilities, l[j]))
+				rank = get_rank(utilities, l[j])
+			mrr += 1.0/rank
+			for index in range(N):
+				if rank <= index+1:
+					recall[index] += 1
 			total += 1
 		cost += loss
 		
@@ -430,11 +447,12 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			utility_total += 1
 		utility_cost += utility_loss
 
+	recall = [r*1.0/total for r in recall]
 	lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f, utility_acc:%f time:%d' % \
 				(fold_name, epoch, cost*1.0/num_batches, utility_cost*1.0/num_batches, \
 					corr*1.0/total, mrr*1.0/total, utility_corr*1.0/utility_total, time.time()-start)
 	print lstring
-	print utility_ones
+	print recall
 
 def main(args):
 	post_sent_vectors = p.load(open(args.post_sent_vectors, 'rb'))
@@ -509,6 +527,7 @@ if __name__ == '__main__':
 	argparser.add_argument("--post_max_sent_len", type = int, default = 10)
 	argparser.add_argument("--ques_max_len", type = int, default = 10)
 	argparser.add_argument("--ans_max_len", type = int, default = 10)
+	argparser.add_argument("--_lambda", type = float, default = 0.5)
 	args = argparser.parse_args()
 	print args
 	print ""

@@ -13,15 +13,18 @@ import random
 def generate_utility_vectors(posts, posthistories, post_ques_answers, users, junior_max_rep, senior_min_rep, vocab, args):
 	post_vectors = []
 	post_sent_vectors = []
+	post_ids = []
 	labels = []
 	for postId in posts:
 		if postId in posthistories:
 			if postId in post_ques_answers:
 				post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
 				post_sent_vectors.append(get_sent_vectors(posts[postId].title + post_ques_answers[postId].post, vocab))
+				post_ids.append(postId)
 				labels.append(0)
 				post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post + post_ques_answers[postId].answer, vocab))
 				post_sent_vectors.append(get_sent_vectors(posts[postId].title + post_ques_answers[postId].post + post_ques_answers[postId].answer, vocab))
+				post_ids.append(postId)
 				labels.append(1)
 		else:
 			if posts[postId].typeId == 1: #only main posts
@@ -31,6 +34,7 @@ def generate_utility_vectors(posts, posthistories, post_ques_answers, users, jun
 				if posts[postId].answer_count == 0 and users[posts[postId].owner_userId].reputation < junior_max_rep:
 					post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
 					post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
+					post_ids.append(postId)
 					labels.append(0)
 				#posts that DO get a response and are written by "senior SE users"
 				if posts[postId].accepted_answerId != None and \
@@ -38,11 +42,13 @@ def generate_utility_vectors(posts, posthistories, post_ques_answers, users, jun
 							users[posts[postId].owner_userId].reputation > senior_min_rep:
 					post_vectors.append(get_indices(posts[postId].title + posts[postId].body, vocab))
 					post_sent_vectors.append(get_sent_vectors(posts[postId].title + posts[postId].body, vocab))
+					post_ids.append(postId)
 					labels.append(1)
 	print "Size: ", len(post_vectors)
 	p.dump(post_vectors, open(args.utility_post_vectors, 'wb'))
 	p.dump(post_sent_vectors, open(args.utility_post_sent_vectors, 'wb'))
 	p.dump(labels, open(args.utility_labels, 'wb'))
+	p.dump(post_ids, open(args.utility_post_ids, 'wb'))
 
 def get_sent_vectors(sents, vocab):
 	sent_vectors = [None]*len(sents)
@@ -67,12 +73,14 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, voca
 	post_sent_vectors = []
 	ques_list_vectors = []
 	ans_list_vectors = []
+	post_ids = []
 	N = args.no_of_candidates
 	for postId in lucene_similar_posts:
 		candidate_postIds = lucene_similar_posts[postId][:N]
 		if len(candidate_postIds) < N:
 			continue
 		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
+		post_ids.append(postId)
 		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[postId].post_sents, vocab))
 		ques_list = [None]*N
 		ans_list = [None]*N
@@ -84,6 +92,7 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, voca
 
 	print "Size: ", len(post_vectors)
 	p.dump(post_vectors, open(args.post_vectors, 'wb'))
+	p.dump(post_ids, open(args.post_ids, 'wb'))
 	p.dump(post_sent_vectors, open(args.post_sent_vectors, 'wb'))
 	p.dump(ques_list_vectors, open(args.ques_list_vectors, 'wb'))
 	p.dump(ans_list_vectors, open(args.ans_list_vectors, 'wb'))
@@ -200,9 +209,11 @@ if __name__ == "__main__":
 	argparser.add_argument("--post_sent_vectors", type = str)
 	argparser.add_argument("--ques_list_vectors", type = str)
 	argparser.add_argument("--ans_list_vectors", type = str)
+	argparser.add_argument("--post_ids", type = str)
 	argparser.add_argument("--utility_post_vectors", type = str)
 	argparser.add_argument("--utility_post_sent_vectors", type = str)
 	argparser.add_argument("--utility_labels", type = str)
+	argparser.add_argument("--utility_post_ids", type = str)
 	argparser.add_argument("--utility_ans_list_vectors", type = str)
 	argparser.add_argument("--lucene_docs_dir", type = str)	
 	argparser.add_argument("--lucene_similar_posts", type = str)

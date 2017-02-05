@@ -42,17 +42,26 @@ def generate_data(post_sents,  ques_list, ans_list, args):
 
 	return data_post_sents, data_post_sent_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list, data_labels
 
-def generate_utility_data(post_sents, labels, args):
-	data_size = len(post_sents)
+def generate_utility_data(post_sents, ans_list, args):
+	data_size = 2*len(post_sents)
 	data_post_sents = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.int32)
 	data_post_sent_masks = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.float32)
-	
-	data_labels = np.array(labels, dtype=np.int32)
-	for i in range(data_size):
+	data_labels = np.zeros(data_size, dtype=np.int32)
+
+	for i in range(data_size/2):
 		for j in range(min(args.post_max_sents, len(post_sents[i]))):
 			data_post_sents[i][j], data_post_sent_masks[i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
-			
-	return data_post_sents, data_post_sent_masks, data_labels
+		data_labels[i] = 0
+	for i in range(data_size/2):
+		for j in range(min(args.post_max_sents, len(post_sents[i])-1)):
+			data_post_sents[data_size/2+i][j], data_post_sent_masks[data_size/2+i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
+		data_post_sents[data_size/2+i][-1], data_post_sent_masks[data_size/2+i][-1] = get_data_masks(ans_list[i][0], args.post_max_sent_len)
+		data_labels[data_size/2+i] = 1
+
+	all_data = zip(data_post_sents, data_post_sent_masks, data_labels)
+	random.shuffle(all_data)
+	data_post_sents, data_post_sent_masks, data_labels = zip(*all_data)
+	return np.array(data_post_sents), np.array(data_post_sent_masks), np.array(data_labels)
 
 def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
@@ -64,6 +73,7 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	ans_list = T.itensor3()
 	ans_masks_list = T.ftensor3()
 	labels = T.imatrix()
+	ranks = T.imatrix()
 
 	l_post_in = [None]*args.post_max_sents
 	l_post_mask = [None]*args.post_max_sents
@@ -294,6 +304,16 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 														W=l_utility_post_dense.W,\
 														b=l_utility_post_dense.b)
 			utility_pqa[i*N+j] = lasagne.layers.get_output(l_pqa_dense[i*N+j])
+	
+	l_pq_out = [None]*N
+	l_pq_dense = [None]*N
+	utility_pq = [None]*N
+	for i in range(N):
+		l_pq_out[i] = lasagne.layers.InputLayer(shape=(None, args.hidden_dim), input_var=pred_ans_out[i])	
+		l_pq_dense[i] = lasagne.layers.DenseLayer(l_pq_out[i], num_units=1,\
+                                                    	nonlinearity=lasagne.nonlinearities.sigmoid)
+		utility_pq[i] = lasagne.layers.get_output(l_pq_dense[i])	
+		loss +=  T.sum(lasagne.objectives.squared_error(T.stack(utility_pq[i])*T.transpose(labels)[i,:], ranks[i,:]*T.transpose(labels)[i,:]))
 
 	post_params = lasagne.layers.get_all_params(l_post_lstm[0], trainable=True)
 	post_emb_params = lasagne.layers.get_all_params(l_post_emb[0], trainbale=True)
@@ -304,7 +324,8 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	utility_post_params = lasagne.layers.get_all_params(l_utility_post_lstm[0], trainable=True)
 	utility_post_emb_params = lasagne.layers.get_all_params(l_utility_post_emb[0], trainbale=True)
 	utility_dense_params = lasagne.layers.get_all_params(l_utility_post_dense, trainable=True)
-	all_params = post_params + post_emb_params + ques_params + ques_emb_params + ans_params + ans_emb_params
+	pq_dense_params = lasagne.layers.get_all_params(l_pq_dense, trainable=True)
+	all_params = post_params + post_emb_params + ques_params + ques_emb_params + ans_params + ans_emb_params + pq_dense_params
 	utility_all_params = utility_post_params + utility_post_emb_params + utility_dense_params
 	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
@@ -313,9 +334,9 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
 	utility_updates = lasagne.updates.adam(utility_loss, utility_all_params, learning_rate=args.learning_rate)
 
-	train_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+	train_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels, ranks], \
 									[loss] + utility_pqa + all_sq_errors_flat, updates=updates)
-	dev_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+	dev_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels, ranks], \
 									[loss] + utility_pqa + all_sq_errors_flat,)
 	utility_train_fn = theano.function([utility_post_sents, utility_post_sent_masks, utility_labels], \
 									[utility_preds, utility_loss], updates=utility_updates)
@@ -324,12 +345,12 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
 	return train_fn, dev_fn, utility_train_fn, utility_dev_fn
 
-def shuffle(q, qm, a, am, l):
+def shuffle(q, qm, a, am, l, r):
 	for i in range(len(q)):
-		all_data = zip(q[i], qm[i], a[i], am[i], l[i])
+		all_data = zip(q[i], qm[i], a[i], am[i], l[i], r[i])
 		random.shuffle(all_data)
-		q[i], qm[i], a[i], am[i], l[i] = zip(*all_data)
-	return q, qm, a, am, l
+		q[i], qm[i], a[i], am[i], l[i], r[i] = zip(*all_data)
+	return q, qm, a, am, l, r
 
 def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
 	if shuffle:
@@ -382,7 +403,7 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 	utility_ones = 0
 	_lambda = 0.5
 	N = args.no_of_candidates
-	N_post_sents = args.post_max_sents
+	recall = [0]*N
 	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
 	utility_post_sents, utility_post_sent_masks, utility_labels = utility_fold
 	minibatches = iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, args.batch_size, shuffle=True)
@@ -393,15 +414,19 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 	for i in range(num_batches):
 		p, pm, q, qm, a, am = minibatches[i]
 		l = np.zeros((args.batch_size, N), dtype=np.int32)
+		r = np.zeros((args.batch_size, N), dtype=np.int32)
 		l[:,0] = 1
-		q, qm, a, am, l = shuffle(q, qm, a, am, l)
+		for j in range(N):
+			r[:,j] = N-j
+		q, qm, a, am, l, r = shuffle(q, qm, a, am, l, r)
 		p = np.transpose(p, (1, 0, 2))
 		pm = np.transpose(pm, (1, 0, 2))
 		q = np.transpose(q, (1, 0, 2))
 		qm = np.transpose(qm, (1, 0, 2))
 		a = np.transpose(a, (1, 0, 2))
 		am = np.transpose(am, (1, 0, 2))
-		out = val_fn(p, pm, q, qm, a, am, l)
+		r = np.transpose(r, (1, 0))
+		out = val_fn(p, pm, q, qm, a, am, l, r)
 		loss = out[0]
 		preds = out[1:N*N+1]
 		preds = np.transpose(preds, (1, 0, 2))
@@ -420,9 +445,13 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			#pdb.set_trace()
 			if np.argmax(utilities) == np.argmax(l[j]) or utilities[np.argmax(utilities)] == utilities[np.argmax(l[j])]:
 				corr += 1
-				mrr += 1.0
+				rank = 1
 			else:
-				mrr += 1.0/(get_rank(utilities, l[j]))
+				rank = get_rank(utilities, l[j])
+			mrr += 1.0/rank
+			for index in range(N):
+				if rank <= index+1:
+					recall[index] += 1
 			total += 1
 		cost += loss
 		
@@ -438,11 +467,12 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			utility_total += 1
 		utility_cost += utility_loss
 
+	recall = [r*1.0/total for r in recall]
 	lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f, utility_acc:%f time:%d' % \
 				(fold_name, epoch, cost*1.0/num_batches, utility_cost*1.0/num_batches, \
 					corr*1.0/total, mrr*1.0/total, utility_corr*1.0/utility_total, time.time()-start)
 	print lstring
-	print utility_ones
+	print recall
 
 def main(args):
 	post_sent_vectors = p.load(open(args.post_sent_vectors, 'rb'))
@@ -468,7 +498,7 @@ def main(args):
 	start = time.time()
 	print 'generating utility data'
 	utility_post_sents, utility_post_sent_masks, utility_labels = \
-					generate_utility_data(utility_post_sent_vectors, utility_labels, args)
+					generate_utility_data(post_sent_vectors, ans_list_vectors, args)
 	print 'done! Time taken: ', time.time() - start
 
 	t_size = int(len(post_sents)*0.8)

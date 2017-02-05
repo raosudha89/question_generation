@@ -18,10 +18,10 @@ def get_data_masks(content, max_len):
 		data_mask = np.concatenate((np.ones(len(content)), np.zeros(max_len-len(content))), axis=0)
 	return data, data_mask
 
-def generate_data(post_sents,  ques_list, ans_list, args):
-	data_size = len(post_sents)
-	data_post_sents = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.int32)
-	data_post_sent_masks = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.float32)
+def generate_data(posts,  ques_list, ans_list, args):
+	data_size = len(posts)
+	data_posts = np.zeros((data_size, args.post_max_len), dtype=np.int32)
+	data_post_masks = np.zeros((data_size, args.post_max_len), dtype=np.float32)
 
 	N = args.no_of_candidates	
 	data_ques_list = np.zeros((data_size, N, args.ques_max_len), dtype=np.int32)
@@ -33,81 +33,54 @@ def generate_data(post_sents,  ques_list, ans_list, args):
 	data_labels = np.zeros((data_size, N))
 
 	for i in range(data_size):
-		for j in range(min(args.post_max_sents, len(post_sents[i]))):
-			data_post_sents[i][j], data_post_sent_masks[i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
+		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], args.post_max_len)
 		for j in range(N):
 			data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[i][j], args.ques_max_len)
 			data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[i][j], args.ans_max_len)
 		data_labels[i][0] = 1
 
-	return data_post_sents, data_post_sent_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list, data_labels
+	return data_posts, data_post_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list, data_labels
 
-def generate_utility_data(post_sents, labels, args):
-	data_size = len(post_sents)
-	data_post_sents = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.int32)
-	data_post_sent_masks = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.float32)
-	
-	data_labels = np.array(labels, dtype=np.int32)
-	for i in range(data_size):
-		for j in range(min(args.post_max_sents, len(post_sents[i]))):
-			data_post_sents[i][j], data_post_sent_masks[i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
-			
-	return data_post_sents, data_post_sent_masks, data_labels
+def generate_utility_data(posts, ans_list, args):
+	data_size = 2*len(posts)
+	data_posts = np.zeros((data_size, args.post_max_len), dtype=np.int32)
+	data_post_masks = np.zeros((data_size, args.post_max_len), dtype=np.float32)
+	data_labels = np.zeros(data_size, dtype=np.int32)
+
+	for i in range(data_size/2):
+		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], args.post_max_len)
+		data_labels[i] = 0
+	for i in range(data_size/2):
+		data_posts[data_size/2+i], data_post_masks[data_size/2+i] = get_data_masks(list(ans_list[i][0]) + list(posts[i]), args.post_max_len)
+		data_labels[data_size/2+i] = 1
+
+	all_data = zip(data_posts, data_post_masks, data_labels)
+	random.shuffle(all_data)
+	data_posts, data_post_masks, data_labels = zip(*all_data)
+	return np.array(data_posts), np.array(data_post_masks), np.array(data_labels)
 
 def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
 	# input theano vars
-	post_sents = T.itensor3()
-	post_sent_masks = T.ftensor3()
+	posts = T.imatrix()
+	post_masks = T.matrix()
 	ques_list = T.itensor3()
 	ques_masks_list = T.ftensor3()
 	ans_list = T.itensor3()
 	ans_masks_list = T.ftensor3()
 	labels = T.imatrix()
 
-	l_post_in = [None]*args.post_max_sents
-	l_post_mask = [None]*args.post_max_sents
-	l_post_emb = [None]*args.post_max_sents
-	l_post_lstm = [None]*args.post_max_sents
-	post_out = [None]*args.post_max_sents
+	l_post_in = lasagne.layers.InputLayer(shape=(None, args.post_max_len), input_var=posts)
+	l_post_mask = lasagne.layers.InputLayer(shape=(None, args.post_max_len), input_var=post_masks)
+	l_post_emb = lasagne.layers.EmbeddingLayer(l_post_in, len_voc, word_emb_dim, W=word_embeddings)
+	l_post_lstm = lasagne.layers.LSTMLayer(l_post_emb, args.hidden_dim, mask_input=l_post_mask, )
 
-	l_post_in[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=post_sents[0])
-	l_post_mask[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=post_sent_masks[0])
-	l_post_emb[0] = lasagne.layers.EmbeddingLayer(l_post_in[0], len_voc, word_emb_dim, W=word_embeddings)
-	l_post_lstm[0] = lasagne.layers.LSTMLayer(l_post_emb[0], args.hidden_dim, mask_input=l_post_mask[0], )
+	# freeze embeddings
+	if freeze:
+		l_post_emb.params[l_post_emb.W].remove('trainable')
 
-	for i in range(1, args.post_max_sents):
-		l_post_in[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=post_sents[i])
-		l_post_mask[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=post_sent_masks[i])
-		l_post_emb[i] = lasagne.layers.EmbeddingLayer(l_post_in[i], len_voc, word_emb_dim, W=word_embeddings)
-
-		l_post_lstm[i] = lasagne.layers.LSTMLayer(l_post_emb[i], args.hidden_dim, mask_input=l_post_mask[i],\
-									ingate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_ingate,\
-																W_hid=l_post_lstm[0].W_hid_to_ingate,\
-																b=l_post_lstm[0].b_ingate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_ingate),\
-									outgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_outgate,\
-																W_hid=l_post_lstm[0].W_hid_to_outgate,\
-																b=l_post_lstm[0].b_outgate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_outgate),\
-									forgetgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_forgetgate,\
-																W_hid=l_post_lstm[0].W_hid_to_forgetgate,\
-																b=l_post_lstm[0].b_forgetgate,\
-																nonlinearity=l_post_lstm[0].nonlinearity_forgetgate),\
-									cell=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_cell,\
-																W_hid=l_post_lstm[0].W_hid_to_cell,\
-																b=l_post_lstm[0].b_cell,\
-																nonlinearity=l_post_lstm[0].nonlinearity_cell),\
-									peepholes=False,\
-									)
-
-		# freeze embeddings
-		if freeze:
-			l_post_emb[i].params[l_post_emb[i].W].remove('trainable')
-
-	for i in range(args.post_max_sents):
-		post_out[i] = lasagne.layers.get_output(l_post_lstm[i])
-		post_out[i] = T.mean(post_out[i] * post_sent_masks[i][:,:,None], axis=1)
+	post_out = lasagne.layers.get_output(l_post_lstm)
+	post_out = T.mean(post_out * post_masks[:,:,None], axis=1)
 	
 	l_ques_in = [None]*N
 	l_ques_mask = [None]*N
@@ -182,8 +155,6 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 		ans_out[i] = lasagne.layers.get_output(l_ans_lstm[i])
 		ans_out[i] = T.mean(ans_out[i] * ans_masks_list[i][:,:,None], axis=1)
 
-	post_out = T.mean(post_out, axis=0)
-	
 	pred_ans_out = [None]*N
 	pqa_out = [None]*(N*N)
 	for i in range(N):
@@ -211,71 +182,21 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 			all_sq_errors[i][j] = T.sum(lasagne.objectives.squared_error(pred_ans_out[i], ans_out[j]), axis=1)
 		#loss += T.sum(all_sq_errors[i] * T.transpose(labels)[i,None,:])
 
-	utility_post_sents = T.itensor3()
-	utility_post_sent_masks = T.ftensor3()
+	utility_posts = T.imatrix()
+	utility_post_masks = T.fmatrix()
 	utility_labels = T.ivector()
 	
-	l_utility_post_in = [None]*args.post_max_sents
-	l_utility_post_mask = [None]*args.post_max_sents
-	l_utility_post_emb = [None]*args.post_max_sents
-	l_utility_post_lstm = [None]*args.post_max_sents
-	utility_post_out = [None]*args.post_max_sents
+	l_utility_post_in = lasagne.layers.InputLayer(shape=(None, args.post_max_len), input_var=utility_posts)
+	l_utility_post_mask = lasagne.layers.InputLayer(shape=(None, args.post_max_len), input_var=utility_post_masks)
+	l_utility_post_emb = lasagne.layers.EmbeddingLayer(l_utility_post_in, len_voc, word_emb_dim, W=word_embeddings)
+	l_utility_post_lstm = lasagne.layers.LSTMLayer(l_utility_post_emb, args.hidden_dim, mask_input=l_utility_post_mask)
 
-	l_utility_post_in[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sents[0])
-	l_utility_post_mask[0] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sent_masks[0])
-	l_utility_post_emb[0] = lasagne.layers.EmbeddingLayer(l_utility_post_in[0], len_voc, word_emb_dim, W=word_embeddings)
-	l_utility_post_lstm[0] = lasagne.layers.LSTMLayer(l_utility_post_emb[0], args.hidden_dim, mask_input=l_utility_post_mask[0])
-	for i in range(args.post_max_sents):
-		l_utility_post_in[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sents[i])
-		l_utility_post_mask[i] = lasagne.layers.InputLayer(shape=(None, args.post_max_sent_len), input_var=utility_post_sent_masks[i])
-		l_utility_post_emb[i] = lasagne.layers.EmbeddingLayer(l_utility_post_in[i], len_voc, word_emb_dim, W=word_embeddings)
+	# freeze embeddings
+	if freeze:
+		l_utility_post_emb.params[l_utility_post_emb.W].remove('trainable')
 
-		l_utility_post_lstm[i] = lasagne.layers.LSTMLayer(l_utility_post_emb[i], args.hidden_dim, mask_input=l_utility_post_mask[i], \
-									#ingate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_ingate,\
-									#							W_hid=l_post_lstm[0].W_hid_to_ingate,\
-									#							b=l_post_lstm[0].b_ingate,\
-									#							nonlinearity=l_post_lstm[0].nonlinearity_ingate),\
-									#outgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_outgate,\
-									#							W_hid=l_post_lstm[0].W_hid_to_outgate,\
-									#							b=l_post_lstm[0].b_outgate,\
-									#							nonlinearity=l_post_lstm[0].nonlinearity_outgate),\
-									#forgetgate=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_forgetgate,\
-									#							W_hid=l_post_lstm[0].W_hid_to_forgetgate,\
-									#							b=l_post_lstm[0].b_forgetgate,\
-									#							nonlinearity=l_post_lstm[0].nonlinearity_forgetgate),\
-									#cell=lasagne.layers.Gate(W_in=l_post_lstm[0].W_in_to_cell,\
-									#							W_hid=l_post_lstm[0].W_hid_to_cell,\
-									#							b=l_post_lstm[0].b_cell,\
-									#							nonlinearity=l_post_lstm[0].nonlinearity_cell),\
-									#peepholes=False,\
-									ingate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_ingate,\
-																W_hid=l_utility_post_lstm[0].W_hid_to_ingate,\
-																b=l_utility_post_lstm[0].b_ingate,\
-																nonlinearity=l_utility_post_lstm[0].nonlinearity_ingate),\
-									outgate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_outgate,\
-																W_hid=l_utility_post_lstm[0].W_hid_to_outgate,\
-																b=l_utility_post_lstm[0].b_outgate,\
-																nonlinearity=l_utility_post_lstm[0].nonlinearity_outgate),\
-									forgetgate=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_forgetgate,\
-																W_hid=l_utility_post_lstm[0].W_hid_to_forgetgate,\
-																b=l_utility_post_lstm[0].b_forgetgate,\
-																nonlinearity=l_utility_post_lstm[0].nonlinearity_forgetgate),\
-									cell=lasagne.layers.Gate(W_in=l_utility_post_lstm[0].W_in_to_cell,\
-																W_hid=l_utility_post_lstm[0].W_hid_to_cell,\
-																b=l_utility_post_lstm[0].b_cell,\
-																nonlinearity=l_utility_post_lstm[0].nonlinearity_cell),\
-									peepholes=False,\
-									)
-
-		# freeze embeddings
-		if freeze:
-			l_utility_post_emb[i].params[l_utility_post_emb[i].W].remove('trainable')
-
-	for i in range(args.post_max_sents):
-		utility_post_out[i] = lasagne.layers.get_output(l_utility_post_lstm[i])
-		utility_post_out[i] = T.mean(utility_post_out[i] * utility_post_sent_masks[i][:,:,None], axis=1)
-	
-	utility_post_out = T.mean(utility_post_out, axis=0)
+	utility_post_out = lasagne.layers.get_output(l_utility_post_lstm)
+	utility_post_out = T.mean(utility_post_out * utility_post_masks[:,:,None], axis=1)
 	
 	l_utility_post_out = lasagne.layers.InputLayer(shape=(None, args.hidden_dim), input_var=utility_post_out)
 	l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_out, num_units=1,\
@@ -295,14 +216,14 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 														b=l_utility_post_dense.b)
 			utility_pqa[i*N+j] = lasagne.layers.get_output(l_pqa_dense[i*N+j])
 
-	post_params = lasagne.layers.get_all_params(l_post_lstm[0], trainable=True)
-	post_emb_params = lasagne.layers.get_all_params(l_post_emb[0], trainbale=True)
+	post_params = lasagne.layers.get_all_params(l_post_lstm, trainable=True)
+	post_emb_params = lasagne.layers.get_all_params(l_post_emb, trainbale=True)
 	ques_params = lasagne.layers.get_all_params(l_ques_lstm[0], trainable=True)
 	ques_emb_params = lasagne.layers.get_all_params(l_ques_emb[0], trainbale=True)
 	ans_params = lasagne.layers.get_all_params(l_ans_lstm[0], trainable=True)
 	ans_emb_params = lasagne.layers.get_all_params(l_ans_emb[0], trainable=True)
-	utility_post_params = lasagne.layers.get_all_params(l_utility_post_lstm[0], trainable=True)
-	utility_post_emb_params = lasagne.layers.get_all_params(l_utility_post_emb[0], trainbale=True)
+	utility_post_params = lasagne.layers.get_all_params(l_utility_post_lstm, trainable=True)
+	utility_post_emb_params = lasagne.layers.get_all_params(l_utility_post_emb, trainbale=True)
 	utility_dense_params = lasagne.layers.get_all_params(l_utility_post_dense, trainable=True)
 	all_params = post_params + post_emb_params + ques_params + ques_emb_params + ans_params + ans_emb_params
 	utility_all_params = utility_post_params + utility_post_emb_params + utility_dense_params
@@ -313,13 +234,13 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
 	utility_updates = lasagne.updates.adam(utility_loss, utility_all_params, learning_rate=args.learning_rate)
 
-	train_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+	train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
 									[loss] + utility_pqa + all_sq_errors_flat, updates=updates)
-	dev_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+	dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
 									[loss] + utility_pqa + all_sq_errors_flat,)
-	utility_train_fn = theano.function([utility_post_sents, utility_post_sent_masks, utility_labels], \
+	utility_train_fn = theano.function([utility_posts, utility_post_masks, utility_labels], \
 									[utility_preds, utility_loss], updates=utility_updates)
-	utility_dev_fn = theano.function([utility_post_sents, utility_post_sent_masks, utility_labels], \
+	utility_dev_fn = theano.function([utility_posts, utility_post_masks, utility_labels], \
 									[utility_preds, utility_loss],)
 
 	return train_fn, dev_fn, utility_train_fn, utility_dev_fn
@@ -331,30 +252,30 @@ def shuffle(q, qm, a, am, l):
 		q[i], qm[i], a[i], am[i], l[i] = zip(*all_data)
 	return q, qm, a, am, l
 
-def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
+def iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
 	if shuffle:
-		indices = np.arange(post_sents.shape[0])
+		indices = np.arange(posts.shape[0])
 		np.random.shuffle(indices)
 	data = []
-	for start_idx in range(0, post_sents.shape[0] - batch_size + 1, batch_size):
+	for start_idx in range(0, posts.shape[0] - batch_size + 1, batch_size):
 		if shuffle:
 			excerpt = indices[start_idx:start_idx + batch_size]
 		else:
 			excerpt = slice(start_idx, start_idx + batch_size)
-		data.append([post_sents[excerpt], post_sent_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt]])
+		data.append([posts[excerpt], post_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt]])
 	return data
 
-def utility_iterate_minibatches(post_sents, post_sent_masks, labels, batch_size, shuffle=False):
+def utility_iterate_minibatches(posts, post_masks, labels, batch_size, shuffle=False):
 	if shuffle:
-		indices = np.arange(post_sents.shape[0])
+		indices = np.arange(posts.shape[0])
 		np.random.shuffle(indices)
 	data = []
-	for start_idx in range(0, post_sents.shape[0] - batch_size + 1, batch_size):
+	for start_idx in range(0, posts.shape[0] - batch_size + 1, batch_size):
 		if shuffle:
 			excerpt = indices[start_idx:start_idx + batch_size]
 		else:
 			excerpt = slice(start_idx, start_idx + batch_size)
-		data.append([post_sents[excerpt], post_sent_masks[excerpt], labels[excerpt]])
+		data.append([posts[excerpt], post_masks[excerpt], labels[excerpt]])
 	return data
 
 def get_rank(utilities, labels):
@@ -380,23 +301,22 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 	utility_total = 0
 	utility_cost = 0
 	utility_ones = 0
-	_lambda = 0.5
 	N = args.no_of_candidates
-	N_post_sents = args.post_max_sents
-	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
-	utility_post_sents, utility_post_sent_masks, utility_labels = utility_fold
-	minibatches = iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, args.batch_size, shuffle=True)
+	recall = [0]*N
+	posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
+	utility_posts, utility_post_masks, utility_labels = utility_fold
+	minibatches = iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, args.batch_size, shuffle=True)
 	num_batches = len(minibatches)
-	utility_batch_size = len(utility_post_sents)/num_batches
+	utility_batch_size = len(utility_posts)/num_batches
 	print "utility_batch_size", utility_batch_size
-	utility_minibatches = utility_iterate_minibatches(utility_post_sents, utility_post_sent_masks, utility_labels, utility_batch_size, shuffle=True)
+	utility_minibatches = utility_iterate_minibatches(utility_posts, utility_post_masks, utility_labels, utility_batch_size, shuffle=True)
 	for i in range(num_batches):
 		p, pm, q, qm, a, am = minibatches[i]
 		l = np.zeros((args.batch_size, N), dtype=np.int32)
 		l[:,0] = 1
 		q, qm, a, am, l = shuffle(q, qm, a, am, l)
-		p = np.transpose(p, (1, 0, 2))
-		pm = np.transpose(pm, (1, 0, 2))
+		p = np.transpose(p, (1, 0))
+		pm = np.transpose(pm, (1, 0))
 		q = np.transpose(q, (1, 0, 2))
 		qm = np.transpose(qm, (1, 0, 2))
 		a = np.transpose(a, (1, 0, 2))
@@ -412,17 +332,21 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			for k in range(N):
 				marginalized_sum = 0.0
 				for m in range(N):
-					marginalized_sum += math.exp(-_lambda * errors[j][k*N+m]) 
+					marginalized_sum += math.exp(-args._lambda * errors[j][k*N+m]) 
 				for m in range(N):
-					utilities[k] += (math.exp(-_lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
+					utilities[k] += (math.exp(-args._lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
 
 				#utilities[k] = preds[j][k*N+k]
 			#pdb.set_trace()
 			if np.argmax(utilities) == np.argmax(l[j]) or utilities[np.argmax(utilities)] == utilities[np.argmax(l[j])]:
 				corr += 1
-				mrr += 1.0
+				rank = 1
 			else:
-				mrr += 1.0/(get_rank(utilities, l[j]))
+				rank = get_rank(utilities, l[j])
+			mrr += 1.0/rank
+			for index in range(N):
+				if rank <= index+1:
+					recall[index] += 1
 			total += 1
 		cost += loss
 		
@@ -438,17 +362,18 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			utility_total += 1
 		utility_cost += utility_loss
 
+	recall = [r*1.0/total for r in recall]
 	lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f, utility_acc:%f time:%d' % \
 				(fold_name, epoch, cost*1.0/num_batches, utility_cost*1.0/num_batches, \
 					corr*1.0/total, mrr*1.0/total, utility_corr*1.0/utility_total, time.time()-start)
 	print lstring
-	print utility_ones
+	print recall
 
 def main(args):
-	post_sent_vectors = p.load(open(args.post_sent_vectors, 'rb'))
+	post_vectors = p.load(open(args.post_vectors, 'rb'))
 	ques_list_vectors = p.load(open(args.ques_list_vectors, 'rb'))
 	ans_list_vectors = p.load(open(args.ans_list_vectors, 'rb'))
-	utility_post_sent_vectors = p.load(open(args.utility_post_sent_vectors, 'rb'))
+	utility_post_vectors = p.load(open(args.utility_post_vectors, 'rb'))
 	utility_labels = p.load(open(args.utility_labels, 'rb'))
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))
 	word_embeddings = np.asarray(word_embeddings, dtype=np.float32)
@@ -461,29 +386,29 @@ def main(args):
 
 	start = time.time()
 	print 'generating data'
-	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels = \
-					generate_data(post_sent_vectors, ques_list_vectors, ans_list_vectors, args)
+	posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels = \
+					generate_data(post_vectors, ques_list_vectors, ans_list_vectors, args)
 	print 'done! Time taken: ', time.time() - start
 
 	start = time.time()
 	print 'generating utility data'
-	utility_post_sents, utility_post_sent_masks, utility_labels = \
-					generate_utility_data(utility_post_sent_vectors, utility_labels, args)
+	utility_posts, utility_post_masks, utility_labels = \
+					generate_utility_data(post_vectors, ans_list_vectors, args)
 	print 'done! Time taken: ', time.time() - start
 
-	t_size = int(len(post_sents)*0.8)
-	train = [post_sents[:t_size], post_sent_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
-	dev = [post_sents[t_size:], post_sent_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
+	t_size = int(len(posts)*0.8)
+	train = [posts[:t_size], post_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
+	dev = [posts[t_size:], post_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
 
 	print 'Size of training data: ', t_size
-	print 'Size of dev data: ', len(post_sents)-t_size
+	print 'Size of dev data: ', len(posts)-t_size
 
-	utility_t_size = int(len(utility_post_sents)*0.8)
-	utility_train = [utility_post_sents[:utility_t_size], utility_post_sent_masks[:utility_t_size], utility_labels[:utility_t_size]]
-	utility_dev = [utility_post_sents[utility_t_size:], utility_post_sent_masks[utility_t_size:], utility_labels[utility_t_size:]]
+	utility_t_size = int(len(utility_posts)*0.8)
+	utility_train = [utility_posts[:utility_t_size], utility_post_masks[:utility_t_size], utility_labels[:utility_t_size]]
+	utility_dev = [utility_posts[utility_t_size:], utility_post_masks[utility_t_size:], utility_labels[utility_t_size:]]
 
 	print 'Size of utility training data: ', utility_t_size
-	print 'Size of utility dev data: ', len(utility_post_sents)-utility_t_size
+	print 'Size of utility dev data: ', len(utility_posts)-utility_t_size
 
 	start = time.time()
 	print 'compiling graph...'
@@ -499,11 +424,9 @@ def main(args):
 if __name__ == '__main__':
 	argparser = argparse.ArgumentParser(sys.argv[0])
 	argparser.add_argument("--post_vectors", type = str)
-	argparser.add_argument("--post_sent_vectors", type = str)
 	argparser.add_argument("--ques_list_vectors", type = str)
 	argparser.add_argument("--ans_list_vectors", type = str)
 	argparser.add_argument("--utility_post_vectors", type = str)
-	argparser.add_argument("--utility_post_sent_vectors", type = str)
 	argparser.add_argument("--utility_labels", type = str)
 	argparser.add_argument("--word_embeddings", type = str)
 	argparser.add_argument("--batch_size", type = int, default = 200)
@@ -513,10 +436,9 @@ if __name__ == '__main__':
 	argparser.add_argument("--learning_rate", type = float, default = 0.001)
 	argparser.add_argument("--rho", type = float, default = 1e-5)
 	argparser.add_argument("--post_max_len", type = int, default = 100)
-	argparser.add_argument("--post_max_sents", type = int, default = 10)
-	argparser.add_argument("--post_max_sent_len", type = int, default = 10)
 	argparser.add_argument("--ques_max_len", type = int, default = 10)
 	argparser.add_argument("--ans_max_len", type = int, default = 10)
+	argparser.add_argument("--_lambda", type = float, default = 0.5)
 	args = argparser.parse_args()
 	print args
 	print ""

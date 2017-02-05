@@ -190,8 +190,8 @@ class UserParser:
 		reputations = [self.users[userId].reputation for userId in self.users]
 		unique_reputations = list(set(reputations))
 		size = len(unique_reputations)
-		junior_max_reputation = unique_reputations[size/3]
-		senior_min_reputation = unique_reputations[2*size/3]
+		junior_max_reputation = unique_reputations[size/4]
+		senior_min_reputation = unique_reputations[3*size/4]
 		return junior_max_reputation, senior_min_reputation
 
 if __name__ == "__main__":
