@@ -315,8 +315,6 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 		l = np.zeros((args.batch_size, N), dtype=np.int32)
 		l[:,0] = 1
 		q, qm, a, am, l = shuffle(q, qm, a, am, l)
-		p = np.transpose(p, (1, 0))
-		pm = np.transpose(pm, (1, 0))
 		q = np.transpose(q, (1, 0, 2))
 		qm = np.transpose(qm, (1, 0, 2))
 		a = np.transpose(a, (1, 0, 2))
@@ -351,8 +349,6 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 		cost += loss
 		
 		up, upm, ul = utility_minibatches[i]
-		up = np.transpose(up, (1, 0, 2))	
-		upm = np.transpose(upm, (1, 0, 2))	
 		utility_preds, utility_loss = utility_val_fn(up, upm, ul)
 		for j in range(len(utility_preds)):
 			if (utility_preds[j] >= 0.5 and ul[j] == 1) or (utility_preds[j] < 0.5 and ul[j] == 0):

@@ -180,8 +180,9 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	for i in range(N):
 		l_pqa_out[i] = lasagne.layers.InputLayer(shape=(None, args.hidden_dim), input_var=pqa_out[i])
 		l_pqa_dense[i] = lasagne.layers.DenseLayer(l_pqa_out[i], num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
+		#l_pqa_dense[i] = lasagne.layers.DenseLayer(l_pqa_out[i], num_units=1, nonlinearity=lasagne.nonlinearities.rectify)
 		pqa_preds[i] = lasagne.layers.get_output(l_pqa_dense[i])
-		loss += T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pqa_preds[i])), labels[:,i]))
+		loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i], labels[:,i]))
 
 	post_params = lasagne.layers.get_all_params(l_post_lstm[0], trainable=True)
 	post_emb_params = lasagne.layers.get_all_params(l_post_emb[0], trainbale=True)
@@ -193,7 +194,8 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
-	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
+	#updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
+	updates = lasagne.updates.adagrad(loss, all_params, learning_rate=args.learning_rate)
 
 	train_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
 									[loss] + pqa_preds, updates=updates)
@@ -228,10 +230,10 @@ def get_rank(preds, labels):
 	sort_index_preds = np.argsort(preds)
 	desc_sort_index_preds = sort_index_preds[::-1] #since ascending sort and we want descending
 	rank = np.where(desc_sort_index_preds==correct)[0][0]
-	for i, index in enumerate(desc_sort_index_preds):
-		if preds[correct] == preds[index]:
-			rank = i
-			break
+	#for i, index in enumerate(desc_sort_index_preds):
+	#	if preds[correct] == preds[index]:
+	#		rank = i
+	#		break
 	return rank+1
 
 def validate(val_fn, fold_name, epoch, fold, args):
@@ -261,7 +263,8 @@ def validate(val_fn, fold_name, epoch, fold, args):
 		preds = np.transpose(preds, (1, 0, 2))
 		preds = preds[:,:,0]
 		for j in range(len(preds)):
-			if np.argmax(preds[j]) == np.argmax(l[j]) or preds[j][np.argmax(preds[j])] == preds[j][np.argmax(l[j])]:
+			#if np.argmax(preds[j]) == np.argmax(l[j]) or preds[j][np.argmax(preds[j])] == preds[j][np.argmax(l[j])]:
+			if np.argmax(preds[j]) == np.argmax(l[j]):
 				corr += 1
 				mrr += 1.0	
 			else:

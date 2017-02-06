@@ -10,7 +10,7 @@ SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/gpu_virtualenv/bin/activate
 
-THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_only_triples.py \
+THEANO_FLAGS=floatX=float32,device=gpu1 python $SCRIPTS_DIR/evpi_model_only_triples_random.py \
 												--post_ids_train $DATA_DIR/$SITE_NAME/post_ids_train.p \
 												--post_sent_vectors_train $DATA_DIR/$SITE_NAME/post_sent_vectors_train.p \
 												--ques_list_vectors_train $DATA_DIR/$SITE_NAME/ques_list_vectors_train.p \
@@ -24,9 +24,7 @@ THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_only_trip
 												--utility_post_sent_vectors_test $DATA_DIR/$SITE_NAME/utility_post_sent_vectors_test.p \
 												--utility_labels_test $DATA_DIR/$SITE_NAME/utility_labels_test.p \
 												--word_embeddings $DATA_DIR/word_embeddings.p \
-												--batch_size 50 \
+												--batch_size 100 \
 												--no_of_epochs 20 \
 												--no_of_candidates 10\
 												--_lambda 0.5 \
-												--dev_predictions_output $DATA_DIR/$SITE_NAME/dev_predictions.out \
-												--test_predictions_output $DATA_DIR/$SITE_NAME/test_predictions.out

@@ -195,15 +195,16 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
 	l_post_ques_ans_in = [None]*(N*N)
 	l_post_ques_ans_dense = [None]*(N*N)
-	l_post_ques_ans_dense2 = [None]*(N*N)
+	#l_post_ques_ans_dense2 = [None]*(N*N)
 	pqa_out = [None]*(N*N)
 	post_ques_ans = T.concatenate([post_out, ques_out[0], ans_out[0]], axis=1)
 	l_post_ques_ans_in[0] = lasagne.layers.InputLayer(shape=(None, 3*args.hidden_dim), input_var=post_ques_ans)
 	l_post_ques_ans_dense[0] = lasagne.layers.DenseLayer(l_post_ques_ans_in[0], num_units=args.hidden_dim,\
                              	                           nonlinearity=lasagne.nonlinearities.rectify)
-	l_post_ques_ans_dense2[0] = lasagne.layers.DenseLayer(l_post_ques_ans_dense[0], num_units=args.hidden_dim,\
-                            	                           nonlinearity=lasagne.nonlinearities.rectify)
-	pqa_out[0] = lasagne.layers.get_output(l_post_ques_ans_dense2[0])
+	#l_post_ques_ans_dense2[0] = lasagne.layers.DenseLayer(l_post_ques_ans_dense[0], num_units=args.hidden_dim,\
+    #                        	                           nonlinearity=lasagne.nonlinearities.rectify)
+	#pqa_out[0] = lasagne.layers.get_output(l_post_ques_ans_dense2[0])
+	pqa_out[0] = lasagne.layers.get_output(l_post_ques_ans_dense[0])
 	for i in range(N):
 		for j in range(N):
 			if i == 0 and j == 0:
@@ -214,11 +215,12 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
                                                       				nonlinearity=lasagne.nonlinearities.rectify,\
 																	W=l_post_ques_ans_dense[0].W,\
                                                         			b=l_post_ques_ans_dense[0].b)
-			l_post_ques_ans_dense2[i*N+j] = lasagne.layers.DenseLayer(l_post_ques_ans_dense[i*N+j], num_units=args.hidden_dim,\
-                            	                           			nonlinearity=lasagne.nonlinearities.rectify,\
-																	W=l_post_ques_ans_dense2[0].W,\
-                                                        			b=l_post_ques_ans_dense2[0].b)
-			pqa_out[i*N+j] = lasagne.layers.get_output(l_post_ques_ans_dense2[i*N+j])
+			#l_post_ques_ans_dense2[i*N+j] = lasagne.layers.DenseLayer(l_post_ques_ans_dense[i*N+j], num_units=args.hidden_dim,\
+            #                	                           			nonlinearity=lasagne.nonlinearities.rectify,\
+			#														W=l_post_ques_ans_dense2[0].W,\
+            #                                            			b=l_post_ques_ans_dense2[0].b)
+			#pqa_out[i*N+j] = lasagne.layers.get_output(l_post_ques_ans_dense2[i*N+j])
+			pqa_out[i*N+j] = lasagne.layers.get_output(l_post_ques_ans_dense[i*N+j])
 	
 	pred_ans_out = [None]*N
 	for i in range(N):
@@ -346,12 +348,11 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 	ans_params = lasagne.layers.get_all_params(l_ans_lstm[0], trainable=True)
 	ans_emb_params = lasagne.layers.get_all_params(l_ans_emb[0], trainable=True)
 	post_ques_ans_dense_params = lasagne.layers.get_all_params(l_post_ques_ans_dense[0], trainable=True)
-	post_ques_ans_dense_params2 = lasagne.layers.get_all_params(l_post_ques_ans_dense2[0], trainable=True)
+	#post_ques_ans_dense_params2 = lasagne.layers.get_all_params(l_post_ques_ans_dense2[0], trainable=True)
 	utility_post_params = lasagne.layers.get_all_params(l_utility_post_lstm[0], trainable=True)
 	utility_post_emb_params = lasagne.layers.get_all_params(l_utility_post_emb[0], trainbale=True)
 	utility_dense_params = lasagne.layers.get_all_params(l_utility_post_dense, trainable=True)
-	all_params = post_params + post_emb_params + ques_params + ques_emb_params + ans_params + ans_emb_params + post_ques_ans_dense_params \
-				+ post_ques_ans_dense_params2
+	all_params = post_params + post_emb_params + ques_params + ques_emb_params + ans_params + ans_emb_params + post_ques_ans_dense_params
 	utility_all_params = utility_post_params + utility_post_emb_params + utility_dense_params
 	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)

@@ -295,6 +295,18 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 														b=l_utility_post_dense.b)
 			utility_pqa[i*N+j] = lasagne.layers.get_output(l_pqa_dense[i*N+j])
 
+	for i in range(N):
+		l_pa_out = [None]*N
+		l_pa_dense = [None]*N
+		utility_pa = [None]*N
+		for j in range(N):
+			l_pa_out[j] = lasagne.layers.InputLayer(shape=(None, args.hidden_dim), input_var=pqa_out[i*N+j])
+			l_pa_dense[j] = lasagne.layers.DenseLayer(l_pa_out[j], num_units=1,\
+                                                   	nonlinearity=lasagne.nonlinearities.sigmoid,\
+													W=l_utility_post_dense.W,\
+													b=l_utility_post_dense.b)
+			utility_pa[j] = lasagne.layers.get_output(l_pa_dense[j])
+		loss += T.sum(utility_pa[j] * T.transpose(labels)[i,None,:]) 
 	post_params = lasagne.layers.get_all_params(l_post_lstm[0], trainable=True)
 	post_emb_params = lasagne.layers.get_all_params(l_post_emb[0], trainbale=True)
 	ques_params = lasagne.layers.get_all_params(l_ques_lstm[0], trainable=True)
@@ -324,14 +336,15 @@ def build_lstm(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
 	return train_fn, dev_fn, utility_train_fn, utility_dev_fn
 
-def shuffle(q, qm, a, am, l):
+def shuffle(q, qm, a, am, l, r):
 	for i in range(len(q)):
-		all_data = zip(q[i], qm[i], a[i], am[i], l[i])
+		all_data = zip(q[i], qm[i], a[i], am[i], l[i], r[i])
 		random.shuffle(all_data)
-		q[i], qm[i], a[i], am[i], l[i] = zip(*all_data)
-	return q, qm, a, am, l
+		q[i], qm[i], a[i], am[i], l[i], r[i] = zip(*all_data)
+	return q, qm, a, am, l, r
 
-def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
+def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, \
+							post_ids, batch_size, shuffle=False):
 	if shuffle:
 		indices = np.arange(post_sents.shape[0])
 		np.random.shuffle(indices)
@@ -341,7 +354,7 @@ def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list,
 			excerpt = indices[start_idx:start_idx + batch_size]
 		else:
 			excerpt = slice(start_idx, start_idx + batch_size)
-		data.append([post_sents[excerpt], post_sent_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt]])
+		data.append([post_sents[excerpt], post_sent_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt], post_ids[excerpt]])
 	return data
 
 def utility_iterate_minibatches(post_sents, post_sent_masks, labels, batch_size, shuffle=False):
@@ -363,13 +376,23 @@ def get_rank(utilities, labels):
 	sort_index_utilities = np.argsort(utilities)
 	desc_sort_index_utilities = sort_index_utilities[::-1] #since ascending sort and we want descending
 	rank = np.where(desc_sort_index_utilities==correct)[0][0]
-	for i, index in enumerate(desc_sort_index_utilities):
-		if utilities[correct] == utilities[index]:
-			rank = i
-			break
+	#for i, index in enumerate(desc_sort_index_utilities):
+	#	if utilities[correct] == utilities[index]:
+	#		rank = i
+	#		break
 	return rank+1
 
-def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args):
+def write_test_predictions(out_file, postId, utilities, ranks):
+	lstring = "[%s]: " % (postId)
+	N = len(utilities)
+	scores = [0]*N
+	for i in range(N):
+		scores[ranks[i]] = utilities[i]
+	for i in range(N):
+		lstring += "%f " % (scores[i])
+	out_file.write(lstring + '\n') 
+
+def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args, out_file=None):
 	start = time.time()
 	num_batches = 0
 	cost = 0
@@ -380,21 +403,33 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 	utility_total = 0
 	utility_cost = 0
 	utility_ones = 0
-	_lambda = 0.5
 	N = args.no_of_candidates
-	N_post_sents = args.post_max_sents
-	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
+	batch_size = args.batch_size
+	recall = [0]*N
+	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, post_ids = fold
 	utility_post_sents, utility_post_sent_masks, utility_labels = utility_fold
-	minibatches = iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, args.batch_size, shuffle=True)
-	num_batches = len(minibatches)
-	utility_batch_size = len(utility_post_sents)/num_batches
-	print "utility_batch_size", utility_batch_size
-	utility_minibatches = utility_iterate_minibatches(utility_post_sents, utility_post_sent_masks, utility_labels, utility_batch_size, shuffle=True)
+	if 'TEST' in fold_name:
+		minibatches = [fold]
+		num_batches = 1
+		utility_minibatches = [utility_fold]
+		batch_size = len(post_sents)
+	else:
+		minibatches = iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, \
+											post_ids, batch_size, shuffle=True)
+		num_batches = len(minibatches)
+		utility_batch_size = len(utility_post_sents)/num_batches
+		#print "utility_batch_size", utility_batch_size
+		utility_minibatches = utility_iterate_minibatches(utility_post_sents, utility_post_sent_masks, utility_labels, utility_batch_size, shuffle=True)
+	if out_file:
+		out_file.write("\nEpoch: %d\n" % epoch)
 	for i in range(num_batches):
-		p, pm, q, qm, a, am = minibatches[i]
-		l = np.zeros((args.batch_size, N), dtype=np.int32)
+		p, pm, q, qm, a, am, ids = minibatches[i]
+		l = np.zeros((batch_size, N), dtype=np.int32)
+		r = np.zeros((batch_size, N), dtype=np.int32)
 		l[:,0] = 1
-		q, qm, a, am, l = shuffle(q, qm, a, am, l)
+		for j in range(N):
+			r[:,j] = j
+		q, qm, a, am, l, r = shuffle(q, qm, a, am, l, r)
 		p = np.transpose(p, (1, 0, 2))
 		pm = np.transpose(pm, (1, 0, 2))
 		q = np.transpose(q, (1, 0, 2))
@@ -412,44 +447,73 @@ def validate(val_fn, utility_val_fn, fold_name, epoch, fold, utility_fold, args)
 			for k in range(N):
 				marginalized_sum = 0.0
 				for m in range(N):
-					marginalized_sum += math.exp(-_lambda * errors[j][k*N+m]) 
+					marginalized_sum += math.exp(-args._lambda * errors[j][k*N+m]) 
 				for m in range(N):
-					utilities[k] += (math.exp(-_lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
-
+					utilities[k] += (math.exp(-args._lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
 				#utilities[k] = preds[j][k*N+k]
-			#pdb.set_trace()
-			if np.argmax(utilities) == np.argmax(l[j]) or utilities[np.argmax(utilities)] == utilities[np.argmax(l[j])]:
+			#if 'TEST' in fold_name:
+			#	pdb.set_trace()
+			if out_file:
+				write_test_predictions(out_file, ids[j], utilities, r[j])
+
+			#if np.argmax(utilities) == np.argmax(l[j]) or utilities[np.argmax(utilities)] == utilities[np.argmax(l[j])]:
+			if np.argmax(utilities) == np.argmax(l[j]):
 				corr += 1
-				mrr += 1.0
+				rank = 1
 			else:
-				mrr += 1.0/(get_rank(utilities, l[j]))
+				rank = get_rank(utilities, l[j])
+			mrr += 1.0/rank
+			for index in range(N):
+				if rank <= index+1:
+					recall[index] += 1
 			total += 1
 		cost += loss
-		
-		up, upm, ul = utility_minibatches[i]
-		up = np.transpose(up, (1, 0, 2))	
-		upm = np.transpose(upm, (1, 0, 2))	
-		utility_preds, utility_loss = utility_val_fn(up, upm, ul)
-		for j in range(len(utility_preds)):
-			if (utility_preds[j] >= 0.5 and ul[j] == 1) or (utility_preds[j] < 0.5 and ul[j] == 0):
-				utility_corr += 1
-			if utility_preds[j] >= 0.5:
-				utility_ones += 1
-			utility_total += 1
-		utility_cost += utility_loss
 
-	lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f, utility_acc:%f time:%d' % \
+		if not ('TEST' in fold_name):
+			up, upm, ul = utility_minibatches[i]
+			up = np.transpose(up, (1, 0, 2))	
+			upm = np.transpose(upm, (1, 0, 2))	
+			utility_preds, utility_loss = utility_val_fn(up, upm, ul)
+			for j in range(len(utility_preds)):
+				if (utility_preds[j] >= 0.5 and ul[j] == 1) or (utility_preds[j] < 0.5 and ul[j] == 0):
+					utility_corr += 1
+				if utility_preds[j] >= 0.5:
+					utility_ones += 1
+				utility_total += 1
+			utility_cost += utility_loss
+
+	recall = [round(r*1.0/total,2) for r in recall]
+	if 'TEST' in fold_name:
+		lstring = '%s: epoch:%d, cost:%f, acc:%f, mrr:%f, time:%d' % \
+				(fold_name, epoch, cost*1.0/num_batches, \
+					corr*1.0/total, mrr*1.0/total, time.time()-start)
+	else:
+		lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f, utility_acc:%f time:%d' % \
 				(fold_name, epoch, cost*1.0/num_batches, utility_cost*1.0/num_batches, \
 					corr*1.0/total, mrr*1.0/total, utility_corr*1.0/utility_total, time.time()-start)
 	print lstring
-	print utility_ones
+	print recall
 
 def main(args):
-	post_sent_vectors = p.load(open(args.post_sent_vectors, 'rb'))
-	ques_list_vectors = p.load(open(args.ques_list_vectors, 'rb'))
-	ans_list_vectors = p.load(open(args.ans_list_vectors, 'rb'))
-	utility_post_sent_vectors = p.load(open(args.utility_post_sent_vectors, 'rb'))
-	utility_labels = p.load(open(args.utility_labels, 'rb'))
+	post_ids = p.load(open(args.post_ids_train, 'rb'))
+	post_ids = np.array(post_ids)
+	post_sent_vectors = p.load(open(args.post_sent_vectors_train, 'rb'))
+	ques_list_vectors = p.load(open(args.ques_list_vectors_train, 'rb'))
+	ans_list_vectors = p.load(open(args.ans_list_vectors_train, 'rb'))
+	utility_post_sent_vectors = p.load(open(args.utility_post_sent_vectors_train, 'rb'))
+	utility_labels = p.load(open(args.utility_labels_train, 'rb'))
+
+	post_ids_test = p.load(open(args.post_ids_test, 'rb'))
+	post_ids_test = np.array(post_ids_test)
+	post_sent_vectors_test = p.load(open(args.post_sent_vectors_test, 'rb'))
+	ques_list_vectors_test = p.load(open(args.ques_list_vectors_test, 'rb'))
+	ans_list_vectors_test = p.load(open(args.ans_list_vectors_test, 'rb'))
+	utility_post_sent_vectors_test = p.load(open(args.utility_post_sent_vectors_test, 'rb'))
+	utility_labels_test = p.load(open(args.utility_labels_test, 'rb'))
+
+	test_predictions_output = open(args.test_predictions_output, 'w')
+	dev_predictions_output = open(args.dev_predictions_output, 'w')
+
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))
 	word_embeddings = np.asarray(word_embeddings, dtype=np.float32)
 	vocab_size = len(word_embeddings)
@@ -457,23 +521,28 @@ def main(args):
 	freeze = False
 	N = args.no_of_candidates
 	
-	print 'vocab_size ', vocab_size, ', post_max_len ', args.post_max_len
+	print 'vocab_size ', vocab_size, 
 
 	start = time.time()
 	print 'generating data'
 	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels = \
 					generate_data(post_sent_vectors, ques_list_vectors, ans_list_vectors, args)
+	post_sents_test, post_sent_masks_test, ques_list_test, ques_masks_list_test, ans_list_test, ans_masks_list_test, labels_test= \
+					generate_data(post_sent_vectors_test, ques_list_vectors_test, ans_list_vectors_test, args)
 	print 'done! Time taken: ', time.time() - start
 
 	start = time.time()
 	print 'generating utility data'
 	utility_post_sents, utility_post_sent_masks, utility_labels = \
 					generate_utility_data(utility_post_sent_vectors, utility_labels, args)
+	utility_post_sents_test, utility_post_sent_masks_test, utility_labels_test = \
+					generate_utility_data(utility_post_sent_vectors_test, utility_labels_test, args)
 	print 'done! Time taken: ', time.time() - start
 
 	t_size = int(len(post_sents)*0.8)
-	train = [post_sents[:t_size], post_sent_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
-	dev = [post_sents[t_size:], post_sent_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
+	train = [post_sents[:t_size], post_sent_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size], post_ids[:t_size]]
+	dev = [post_sents[t_size:], post_sent_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:], post_ids[t_size:]]
+	test = [post_sents_test, post_sent_masks_test, ques_list_test, ques_masks_list_test, ans_list_test, ans_masks_list_test, post_ids_test]
 
 	print 'Size of training data: ', t_size
 	print 'Size of dev data: ', len(post_sents)-t_size
@@ -481,6 +550,7 @@ def main(args):
 	utility_t_size = int(len(utility_post_sents)*0.8)
 	utility_train = [utility_post_sents[:utility_t_size], utility_post_sent_masks[:utility_t_size], utility_labels[:utility_t_size]]
 	utility_dev = [utility_post_sents[utility_t_size:], utility_post_sent_masks[utility_t_size:], utility_labels[utility_t_size:]]
+	utility_test = [utility_post_sents_test, utility_post_sent_masks_test, utility_labels_test]
 
 	print 'Size of utility training data: ', utility_t_size
 	print 'Size of utility dev data: ', len(utility_post_sents)-utility_t_size
@@ -493,18 +563,24 @@ def main(args):
 	# train network
 	for epoch in range(args.no_of_epochs):
 		validate(train_fn, utility_train_fn, 'Train', epoch, train, utility_train, args)
-		validate(dev_fn, utility_dev_fn, '\t DEV', epoch, dev, utility_dev, args)
+		validate(dev_fn, utility_dev_fn, '\t DEV', epoch, dev, utility_dev, args, dev_predictions_output)
+		validate(dev_fn, utility_dev_fn, '\t TEST', epoch, test, utility_test, args, test_predictions_output)
 		print "\n"
 
 if __name__ == '__main__':
 	argparser = argparse.ArgumentParser(sys.argv[0])
-	argparser.add_argument("--post_vectors", type = str)
-	argparser.add_argument("--post_sent_vectors", type = str)
-	argparser.add_argument("--ques_list_vectors", type = str)
-	argparser.add_argument("--ans_list_vectors", type = str)
-	argparser.add_argument("--utility_post_vectors", type = str)
-	argparser.add_argument("--utility_post_sent_vectors", type = str)
-	argparser.add_argument("--utility_labels", type = str)
+	argparser.add_argument("--post_ids_train", type = str)
+	argparser.add_argument("--post_sent_vectors_train", type = str)
+	argparser.add_argument("--ques_list_vectors_train", type = str)
+	argparser.add_argument("--ans_list_vectors_train", type = str)
+	argparser.add_argument("--utility_post_sent_vectors_train", type = str)
+	argparser.add_argument("--utility_labels_train", type = str)
+	argparser.add_argument("--post_ids_test", type = str)
+	argparser.add_argument("--post_sent_vectors_test", type = str)
+	argparser.add_argument("--ques_list_vectors_test", type = str)
+	argparser.add_argument("--ans_list_vectors_test", type = str)
+	argparser.add_argument("--utility_post_sent_vectors_test", type = str)
+	argparser.add_argument("--utility_labels_test", type = str)
 	argparser.add_argument("--word_embeddings", type = str)
 	argparser.add_argument("--batch_size", type = int, default = 200)
 	argparser.add_argument("--no_of_epochs", type = int, default = 20)
@@ -512,11 +588,13 @@ if __name__ == '__main__':
 	argparser.add_argument("--no_of_candidates", type = int, default = 10)
 	argparser.add_argument("--learning_rate", type = float, default = 0.001)
 	argparser.add_argument("--rho", type = float, default = 1e-5)
-	argparser.add_argument("--post_max_len", type = int, default = 100)
 	argparser.add_argument("--post_max_sents", type = int, default = 10)
 	argparser.add_argument("--post_max_sent_len", type = int, default = 10)
 	argparser.add_argument("--ques_max_len", type = int, default = 10)
 	argparser.add_argument("--ans_max_len", type = int, default = 10)
+	argparser.add_argument("--_lambda", type = float, default = 0.5)
+	argparser.add_argument("--test_predictions_output", type = str)
+	argparser.add_argument("--dev_predictions_output", type = str)
 	args = argparser.parse_args()
 	print args
 	print ""
