@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N data_askubuntu
+#PBS -N data_english
 #PBS -l pmem=64g
 #PBS -m abe
 #PBS -l walltime=24:00:00 
@@ -10,9 +10,9 @@ DATADUMP_DIR=/fs/clip-corpora/stackexchange
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
-SITE_NAME=askubuntu.com
+#SITE_NAME=askubuntu.com
 #SITE_NAME=codereview.stackexchange.com
-#SITE_NAME=english.stackexchange.com
+SITE_NAME=english.stackexchange.com
 #SITE_NAME=math.stackexchange.com
 #SITE_NAME=physics.stackexchange.com
 #SITE_NAME=superuser.com

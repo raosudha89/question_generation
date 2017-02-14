@@ -72,6 +72,12 @@ class PostQuesAnsGenerator:
 				question = question_comments[postId]
 				if not question:
 					continue
+				else:
+					answer_indices = get_indices(answer, vocab)
+					question_indices = get_indices(question.text, vocab)
+					similarity = get_similarity(question_indices, answer_indices, word_embeddings)
+					if similarity <= 0.4:
+						continue
 			except:
 				continue 
 			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question.text, answer)
