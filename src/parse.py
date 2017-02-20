@@ -70,13 +70,17 @@ class CommentParser:
 		return ['duplicate', 'upvote', 'downvote', 'vote', 'related']
 
 	def get_question(self, text):
-		r = re.compile(r"(http://[^ ]+)")
-		text = r.sub("", text) #remove urls so that ? is not identified in urls
+		text = remove_urls(text)
 		tokens = get_tokens(text)
 		if '?' in tokens:
-			text = " ".join(tokens).split('?')[0]+ '?'
-			words = text.split()
-			if len(words) > 25: #ignore long comments
+			parts = " ".join(tokens).split('?')
+			text = ""
+			for i in range(len(parts)-1):
+				text += parts[i]+ ' ?'
+				words = text.split()
+				if len(words) > 30:
+					break
+			if len(words) > 35: #ignore long comments
 				return None
 			for w in self.domain_words():
 				if w in words:

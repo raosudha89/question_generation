@@ -178,6 +178,13 @@ def main(args):
 	print 'Done! Time taken ', time.time() - start_time
 	print
 	
+	post_ques_ans_log_file = open(args.post_ques_ans_log, 'w')
+	for postId in post_ques_answers:
+		post_ques_ans_log_file.write('Id: %s\n' % postId)
+		post_ques_ans_log_file.write('Post: %s\n' % ' '.join(post_ques_answers[postId].post))
+		post_ques_ans_log_file.write('Ques: %s\n' % ' '.join(post_ques_answers[postId].question_comment))
+		post_ques_ans_log_file.write('Ans: %s\n\n' % ' '.join(post_ques_answers[postId].answer))
+	
 	generate_docs_for_lucene(post_ques_answers, posts, args.lucene_docs_dir)
 	os.system('cd /fs/clip-amr/lucene && sh run_lucene.sh ' + args.site_name)
 
@@ -221,6 +228,7 @@ if __name__ == "__main__":
 	argparser.add_argument("--vocab", type = str)
 	argparser.add_argument("--no_of_candidates", type = int, default = 10)
 	argparser.add_argument("--site_name", type = str)
+	argparser.add_argument("--post_ques_ans_log", type = str)
 	args = argparser.parse_args()
 	print args
 	print ""

@@ -5,6 +5,7 @@ import nltk
 nltk.download('punkt')
 import numpy as np
 from BeautifulSoup import BeautifulSoup
+import re
 
 def get_tokens(text):
 	text = BeautifulSoup(text.encode('utf-8').decode('ascii', 'ignore')).text
@@ -36,3 +37,13 @@ def get_similarity(a_indices, b_indices, word_embeddings):
 	cosine_similarity = np.dot(avg_a_embedding, avg_b_embedding)/(np.linalg.norm(avg_a_embedding) * np.linalg.norm(avg_b_embedding))
 	return cosine_similarity
 
+def remove_urls(text):
+	r = re.compile(r"(http://[^ ]+)")
+	text = r.sub("", text) #remove urls so that ? is not identified in urls
+	r = re.compile(r"(https://[^ ]+)")
+	text = r.sub("", text) #remove urls so that ? is not identified in urls
+	r = re.compile(r"(http : //[^ ]+)")
+	text = r.sub("", text) #remove urls so that ? is not identified in urls
+	r = re.compile(r"(https : //[^ ]+)")
+	text = r.sub("", text) #remove urls so that ? is not identified in urls
+	return text

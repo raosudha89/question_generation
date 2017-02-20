@@ -1,11 +1,5 @@
 #!/bin/bash
 
-#PBS -S /bin/sh
-#PBS -N evpi_triples
-#PBS -l pmem=64g
-#PBS -m abe
-#PBS -l walltime=24:00:00 
-
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
@@ -14,16 +8,14 @@ SITE_NAME=askubuntu.com
 #SITE_NAME=superuser.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
-source /fs/clip-amr/isi-internship/theano-env/bin/activate
+source /fs/clip-amr/gpu_virtualenv/bin/activate
 
-python $SCRIPTS_DIR/evpi_model_only_triples_oncpu.py \
-												--post_ids_train $DATA_DIR/$SITE_NAME/post_ids_train.p \
+THEANO_FLAGS=floatX=float32,device=gpu1 python $SCRIPTS_DIR/evpi_model_only_triples_utility.py \
 												--post_sent_vectors_train $DATA_DIR/$SITE_NAME/post_sent_vectors_train.p \
 												--ques_list_vectors_train $DATA_DIR/$SITE_NAME/ques_list_vectors_train.p \
 												--ans_list_vectors_train $DATA_DIR/$SITE_NAME/ans_list_vectors_train.p \
 												--utility_post_sent_vectors_train $DATA_DIR/$SITE_NAME/utility_post_sent_vectors_train.p \
 												--utility_labels_train $DATA_DIR/$SITE_NAME/utility_labels_train.p \
-												--post_ids_test $DATA_DIR/$SITE_NAME/post_ids_test.p \
 												--post_sent_vectors_test $DATA_DIR/$SITE_NAME/post_sent_vectors_test.p \
 												--ques_list_vectors_test $DATA_DIR/$SITE_NAME/ques_list_vectors_test.p \
 												--ans_list_vectors_test $DATA_DIR/$SITE_NAME/ans_list_vectors_test.p \
@@ -34,6 +26,4 @@ python $SCRIPTS_DIR/evpi_model_only_triples_oncpu.py \
 												--batch_size 100 \
 												--no_of_epochs 20 \
 												--no_of_candidates 10\
-												--_lambda 0.5 \
-												--dev_predictions_output $DATA_DIR/$SITE_NAME/dev_predictions_orgsetting.out \
-												--test_predictions_output $DATA_DIR/$SITE_NAME/test_predictions_orgsetting.out
+												--_lambda 0.5 

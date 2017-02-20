@@ -3,8 +3,8 @@
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
-#SITE_NAME=askubuntu.com
-SITE_NAME=english.stackexchange.com
+SITE_NAME=askubuntu.com
+#SITE_NAME=english.stackexchange.com
 #SITE_NAME=superuser.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
@@ -24,8 +24,8 @@ THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_only_trip
 												--utility_post_sent_vectors_test $DATA_DIR/$SITE_NAME/utility_post_sent_vectors_test.p \
 												--utility_labels_test $DATA_DIR/$SITE_NAME/utility_labels_test.p \
 												--word_embeddings $DATA_DIR/word_embeddings.p \
-												--hidden_dim 32 \
-												--batch_size 32 \
+												--hidden_dim 100 \
+												--batch_size 100 \
 												--no_of_epochs 20 \
 												--no_of_candidates 10\
 												--_lambda 0.5 \

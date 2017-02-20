@@ -75,8 +75,8 @@ def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, wo
 		out[i] = lasagne.layers.get_output(l_lstm_)
 		out[i] = T.mean(out[i] * content_masks_list[i][:,:,None], axis=1)
 	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
-	emb_params = lasagne.layers.get_all_params(l_emb, trainable=True)
-	return out, params, emb_params
+	
+	return out, params
 
 def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
@@ -89,14 +89,21 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	ans_masks_list = T.ftensor3()
 	labels = T.imatrix()
 
-	post_out, post_lstm_params, post_emb_params = build_lstm(post_sents, post_sent_masks, args.post_max_sents, args.post_max_sent_len, \
-															 word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
-	ques_out, ques_lstm_params, ques_emb_params = build_lstm(ques_list, ques_masks_list, N, args.ques_max_len, \
-															 word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
-	ans_out, ans_lstm_params, ans_emb_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
-															 word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
+	post_out, post_lstm_params = build_lstm(post_sents, post_sent_masks, args.post_max_sents, args.post_max_sent_len, \
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
+	ques_out, ques_lstm_params = build_lstm(ques_list, ques_masks_list, N, args.ques_max_len, \
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
+	ans_out, ans_lstm_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	
-	post_out = T.mean(post_out, axis=0)
+	#post_out = T.mean(post_out, axis=0)
+	post_concatenate = T.concatenate(post_out, axis=1)
+	l_post_concatenate = lasagne.layers.InputLayer(shape=(args.batch_size, args.post_max_sents*args.hidden_dim), input_var=post_concatenate)
+	l_post_dense = lasagne.layers.DenseLayer(l_post_concatenate, num_units=args.hidden_dim,\
+													nonlinearity=lasagne.nonlinearities.rectify)
+	l_post_dense2 = lasagne.layers.DenseLayer(l_post_dense, num_units=args.hidden_dim,\
+													nonlinearity=lasagne.nonlinearities.rectify)
+	post_out = lasagne.layers.get_output(l_post_dense2)
 	
 	pqa_preds = [None]*N
 	post_ques_ans = T.concatenate([post_out, ques_out[0], ans_out[0]], axis=1)
@@ -121,11 +128,11 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 			pqa_preds[i] = lasagne.layers.get_output(l_post_ques_ans_dense2_)
 			loss += T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pqa_preds[i])), labels[:,i]))
 	
-	post_ques_ans_dense_params = lasagne.layers.get_all_params(l_post_ques_ans_dense, trainable=True)
-	post_ques_ans_dense_params2 = lasagne.layers.get_all_params(l_post_ques_ans_dense2, trainable=True)
+	post_dense2_params = lasagne.layers.get_all_params(l_post_dense2, trainable=True)
+	post_ques_ans_dense2_params = lasagne.layers.get_all_params(l_post_ques_ans_dense2, trainable=True)
 
-	all_params = post_lstm_params + post_emb_params + ques_lstm_params + ques_emb_params + ans_lstm_params + ans_emb_params \
-				+ post_ques_ans_dense_params + post_ques_ans_dense_params2
+	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params \
+				 + post_dense2_params + post_ques_ans_dense2_params 
 	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
@@ -206,6 +213,8 @@ def validate(val_fn, fold_name, epoch, fold, args):
 		preds = preds[:,:,0]
 		for j in range(len(preds)):
 			rank = get_rank(preds[j], l[j])
+			if 'DEV' in fold_name and epoch == 4:
+				pdb.set_trace()
 			if rank == 1:
 				corr += 1
 			mrr += 1.0/rank
