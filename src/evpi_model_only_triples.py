@@ -568,26 +568,53 @@ def main(args):
 	print 'Size of dev data: ', dev_size
 
 	start = time.time()
-	print 'generating utility data'
-	utility_post_sents, utility_post_sent_masks, utility_labels = \
+	print 'generating utility data from triples'
+	data_utility_post_sents_triples, data_utility_post_sent_masks_triples, data_utility_labels_triples = \
 					generate_utility_data_from_triples(post_sent_vectors, ans_list_vectors, args)
-	utility_post_sents_test, utility_post_sent_masks_test, utility_labels_test = \
+	data_utility_post_sents_triples_test, data_utility_post_sent_masks_triples_test, data_utility_labels_triples_test = \
 					generate_utility_data_from_triples(post_sent_vectors_test, ans_list_vectors_test, args)
 	print 'done! Time taken: ', time.time() - start
 
-	utility_train_size = int(len(utility_post_sents)*0.8)
-	utility_dev_size = int(len(utility_post_sents)*0.2)/2
-	utility_train = [utility_post_sents[:utility_train_size], \
-						utility_post_sent_masks[:utility_train_size], \
-						utility_labels[:utility_train_size]]
+	utility_train_triples_size = int(len(data_utility_post_sents_triples)*0.8)
+	utility_dev_triples_size = int(len(data_utility_post_sents_triples)*0.2)/2
+	
+	start = time.time()
+	print 'generating utility data'
+	data_utility_post_sents, data_utility_post_sent_masks, data_utility_labels = \
+					generate_utility_data(utility_post_sent_vectors, utility_labels, args)
+	data_utility_post_sents_test, data_utility_post_sent_masks_test, data_utility_labels_test = \
+					generate_utility_data(utility_post_sent_vectors_test, utility_labels_test, args)
+	print 'done! Time taken: ', time.time() - start
 
-	utility_dev = [utility_post_sents[utility_train_size: utility_train_size+utility_dev_size], \
-					utility_post_sent_masks[utility_train_size: utility_train_size+utility_dev_size], \
-					utility_labels[utility_train_size: utility_train_size+utility_dev_size]]
+	utility_train_size = int(len(data_utility_post_sents)*0.8)
+	utility_dev_size = int(len(data_utility_post_sents)*0.2)/2
 
-	utility_test = [np.concatenate((utility_post_sents_test, utility_post_sents[utility_train_size+utility_dev_size:])), \
-					np.concatenate((utility_post_sent_masks_test, utility_post_sent_masks[utility_train_size+utility_dev_size:])), \
-					np.concatenate((utility_labels_test, utility_labels[utility_train_size+utility_dev_size:]))] 
+	utility_train = [np.concatenate((data_utility_post_sents_triples[:utility_train_triples_size],
+									 data_utility_post_sents[:utility_train_size])), \
+					np.concatenate((data_utility_post_sent_masks_triples[:utility_train_triples_size],
+									 data_utility_post_sent_masks[:utility_train_size])), \
+					np.concatenate((data_utility_labels_triples[:utility_train_triples_size],
+									 data_utility_labels[:utility_train_size]))]
+
+	utility_dev = [np.concatenate((data_utility_post_sents_triples[utility_train_triples_size: utility_train_triples_size+utility_dev_triples_size],
+								  data_utility_post_sents[utility_train_size: utility_train_size+utility_dev_size])), \
+					np.concatenate((data_utility_post_sent_masks_triples[utility_train_triples_size: utility_train_triples_size+utility_dev_triples_size],
+								  data_utility_post_sent_masks[utility_train_size: utility_train_size+utility_dev_size])), \
+					np.concatenate((data_utility_labels_triples[utility_train_triples_size: utility_train_triples_size+utility_dev_triples_size],
+								  data_utility_labels[utility_train_size: utility_train_size+utility_dev_size]))]
+
+	utility_test = [np.concatenate((data_utility_post_sents_triples_test, \
+									data_utility_post_sents_triples[utility_train_triples_size+utility_dev_triples_size:],
+									data_utility_post_sents_test, \
+									data_utility_post_sents[utility_train_size+utility_dev_triples_size:])), \
+					np.concatenate((data_utility_post_sent_masks_triples_test, \
+									data_utility_post_sent_masks_triples[utility_train_triples_size+utility_triples_dev_size:],\
+									data_utility_post_sent_masks_test, \
+									data_utility_post_sent_masks[utility_train_size+utility_dev_size:])), \
+					np.concatenate((data_utility_labels_triples_test, \
+									data_utility_labels_triples[utility_train_triples_size+utility_dev_triples_size:],\
+									data_utility_labels_test, \
+									data_utility_labels[utility_train_size+utility_dev_size:]))] 
 
 	print 'Size of utility training data: ', utility_train_size
 	print 'Size of utility dev data: ', utility_dev_size
