@@ -9,8 +9,8 @@
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
-SITE_NAME=askubuntu.com
-#SITE_NAME=english.stackexchange.com
+#SITE_NAME=askubuntu.com
+SITE_NAME=english.stackexchange.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 python $SCRIPTS_DIR/split_train_test.py --human_evald_post_ids $DATA_DIR/$SITE_NAME/human_evald_post_ids.txt \

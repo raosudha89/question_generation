@@ -12,6 +12,7 @@ DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 SITE_NAME=askubuntu.com
 #SITE_NAME=english.stackexchange.com
 #SITE_NAME=superuser.com
+#SITE_NAME=askubuntu_unix_superuser
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/isi-internship/theano-env/bin/activate

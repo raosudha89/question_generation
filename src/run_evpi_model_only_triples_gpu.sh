@@ -3,9 +3,10 @@
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
-SITE_NAME=askubuntu.com
+#SITE_NAME=askubuntu.com
 #SITE_NAME=english.stackexchange.com
 #SITE_NAME=superuser.com
+SITE_NAME=askubuntu_unix_superuser
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/gpu_virtualenv/bin/activate

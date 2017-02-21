@@ -26,12 +26,12 @@ def generate_utility_data_from_triples(post_sents, ans_list, args):
 	data_labels = np.zeros(data_size, dtype=np.int32)
 
 	for i in range(data_size/2):
-		for j in range(min(args.post_max_sents-1, len(post_sents[i]))):
+		for j in range(min(args.post_max_sents, len(post_sents[i]))):
 			data_post_sents[2*i][j], data_post_sent_masks[2*i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
 			data_post_sents[2*i+1][j], data_post_sent_masks[2*i+1][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
 		rand_index = random.randint(0,9)
-		data_post_sents[2*i][j+1], data_post_sent_masks[2*i][j+1] = get_data_masks(ans_list[i][rand_index], args.post_max_sent_len)
-		data_post_sents[2*i+1][j+1], data_post_sent_masks[2*i+1][j+1] = get_data_masks(ans_list[i][0], args.post_max_sent_len)
+		data_post_sents[2*i][-1], data_post_sent_masks[2*i][-1] = get_data_masks(ans_list[i][rand_index], args.post_max_sent_len)
+		data_post_sents[2*i+1][-1], data_post_sent_masks[2*i+1][-1] = get_data_masks(ans_list[i][0], args.post_max_sent_len)
 		data_labels[2*i] = 0
 		data_labels[2*i+1] = 1
 		
@@ -53,10 +53,11 @@ def build_utility_lstm(utility_post_list, utility_post_masks_list, post_max_sent
 	utility_post_out = [None]*post_max_sents
 	l_in = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=utility_post_list[0])
 	l_mask = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=utility_post_masks_list[0])
-	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
-	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
-	l_drop = lasagne.layers.DropoutLayer(l_emb, p=0.2)
-	l_lstm = lasagne.layers.LSTMLayer(l_drop, hidden_dim, mask_input=l_mask, )
+	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
+	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
+	# l_drop = lasagne.layers.DropoutLayer(l_emb, p=0.2)
+	# l_lstm = lasagne.layers.LSTMLayer(l_drop, hidden_dim, mask_input=l_mask, )
+	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
 	utility_post_out[0] = lasagne.layers.get_output(l_lstm)
 	utility_post_out[0] = T.mean(utility_post_out[0] * utility_post_masks_list[0][:,:,None], axis=1)
 	for i in range(1, post_max_sents):
@@ -64,8 +65,9 @@ def build_utility_lstm(utility_post_list, utility_post_masks_list, post_max_sent
 		l_mask_ = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=utility_post_masks_list[i])
 		#l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, word_emb_dim, W=word_embeddings)
 		l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, hidden_dim, W=l_emb.W)
-		l_drop_ = lasagne.layers.DropoutLayer(l_emb_, p=0.2)
-		l_lstm_ = lasagne.layers.LSTMLayer(l_drop_, hidden_dim, mask_input=l_mask_,\
+		# l_drop_ = lasagne.layers.DropoutLayer(l_emb_, p=0.2)
+		# l_lstm_ = lasagne.layers.LSTMLayer(l_drop_, hidden_dim, mask_input=l_mask_,\
+		l_lstm_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_,\
 									ingate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_ingate,\
 																W_hid=l_lstm.W_hid_to_ingate,\
 																b=l_lstm.b_ingate,\
@@ -86,8 +88,10 @@ def build_utility_lstm(utility_post_list, utility_post_masks_list, post_max_sent
 									)
 		utility_post_out[i] = lasagne.layers.get_output(l_lstm_)
 		utility_post_out[i] = T.mean(utility_post_out[i] * utility_post_masks_list[i][:,:,None], axis=1)
-		
+	
+	#l_emb.params[l_emb.W].remove('trainable')
 	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
+				# lasagne.layers.get_all_params(l_emb, trainable=True) 
 		
 	return utility_post_out, params
 
@@ -99,7 +103,7 @@ def build_evpi_model(word_embeddings, len_voc, word_emb_dim, args, freeze=False)
 	utility_post_sent_masks = T.ftensor3()
 	utility_labels = T.ivector()
 
-	utility_post_out, utility_post_lstm_params= build_utility_lstm(utility_post_sents, utility_post_sent_masks, \
+	utility_post_out, utility_post_lstm_params = build_utility_lstm(utility_post_sents, utility_post_sent_masks, \
 																	args.post_max_sents, args.post_max_sent_len, \
 																	word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 
@@ -108,10 +112,11 @@ def build_evpi_model(word_embeddings, len_voc, word_emb_dim, args, freeze=False)
 	
 	#l_utility_post_out = lasagne.layers.InputLayer(shape=(args.batch_size, args.hidden_dim), input_var=utility_post_out)
 	l_utility_post_out = lasagne.layers.InputLayer(shape=(args.batch_size, (args.post_max_sents)*args.hidden_dim), input_var=utility_post_concatenate)
-	l_utility_post_drop = lasagne.layers.DropoutLayer(l_utility_post_out, p=0.2)
-	l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_drop, num_units=args.hidden_dim,\
+	# l_utility_post_drop = lasagne.layers.DropoutLayer(l_utility_post_out, p=0.2)
+	# l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_drop, num_units=args.hidden_dim,\
+	l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_out, num_units=args.hidden_dim,\
 													nonlinearity=lasagne.nonlinearities.rectify)
-	for i in range(5):
+	for i in range(10):
 		l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_dense, num_units=args.hidden_dim,\
 														nonlinearity=lasagne.nonlinearities.rectify)
 	l_utility_post_dense2 = lasagne.layers.DenseLayer(l_utility_post_dense, num_units=1,\
@@ -119,8 +124,9 @@ def build_evpi_model(word_embeddings, len_voc, word_emb_dim, args, freeze=False)
 	utility_preds = lasagne.layers.get_output(l_utility_post_dense2)
 	utility_loss = T.sum(lasagne.objectives.binary_crossentropy(utility_preds, utility_labels))
 
-	utility_dense2_params = lasagne.layers.get_all_params(l_utility_post_dense2, trainable=True)
-	utility_all_params = utility_post_lstm_params + utility_dense2_params
+	utility_dense_params = lasagne.layers.get_all_params(l_utility_post_dense2, trainable=True)
+							# lasagne.layers.get_all_params(l_utility_post_dense, trainable=True)
+	utility_all_params = utility_post_lstm_params + utility_dense_params
 
 	utility_loss += args.rho * sum(T.sum(l ** 2) for l in utility_all_params)
 
@@ -189,7 +195,7 @@ def main(args):
 	word_emb_dim = len(word_embeddings[0])
 	freeze = False
 	
-	print 'vocab_size ', vocab_size, 
+	print 'vocab_size ', vocab_size, ' word_emb_dim ', word_emb_dim
 
 	start = time.time()
 	print 'generating utility data from triples'
@@ -230,9 +236,9 @@ def main(args):
 	utility_test = [np.concatenate((data_utility_post_sents_triples_test, \
 									data_utility_post_sents_triples[utility_train_triples_size+utility_dev_triples_size:],
 									data_utility_post_sents_test, \
-									data_utility_post_sents[utility_train_size+utility_dev_triples_size:])), \
+									data_utility_post_sents[utility_train_size+utility_dev_size:])), \
 					np.concatenate((data_utility_post_sent_masks_triples_test, \
-									data_utility_post_sent_masks_triples[utility_train_triples_size+utility_triples_dev_size:],\
+									data_utility_post_sent_masks_triples[utility_train_triples_size+utility_dev_triples_size:],\
 									data_utility_post_sent_masks_test, \
 									data_utility_post_sent_masks[utility_train_size+utility_dev_size:])), \
 					np.concatenate((data_utility_labels_triples_test, \
