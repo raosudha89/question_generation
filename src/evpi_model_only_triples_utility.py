@@ -260,7 +260,7 @@ def main(args):
 	for epoch in range(args.no_of_epochs):
 		validate(utility_train_fn, 'Train', epoch, utility_train, args)
 		validate(utility_dev_fn, '\t DEV', epoch, utility_dev, args)
-		#validate(utility_dev_fn, '\t TEST', epoch, utility_test, args)
+		validate(utility_dev_fn, '\t TEST', epoch, utility_test, args)
 		print "\n"
 
 if __name__ == '__main__':

@@ -1,35 +1,26 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N data_superuser
+#PBS -N data_stackoverflow
 #PBS -l pmem=62g
 #PBS -m abe
-#PBS -q batch
-#PBS -l walltime=10:00:00 
+#PBS -l walltime=24:00:00 
 
 DATADUMP_DIR=/fs/clip-corpora/stackexchange
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
-#SITE_NAME=3dprinting.stackexchange.com
-#SITE_NAME=academia.stackexchange.com
-#SITE_NAME=askubuntu.com
-#SITE_NAME=codereview.stackexchange.com
-#SITE_NAME=english.stackexchange.com
-#SITE_NAME=math.stackexchange.com
-#SITE_NAME=physics.stackexchange.com
-SITE_NAME=superuser.com
-#SITE_NAME=tex.stackexchange.com
-#SITE_NAME=unix.stackexchange.com
+SITE_NAME=stackoverflow.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
-source /fs/clip-amr/isi-internship/theano-env/bin/activate
+source /fs/clip-amr/gpu_virtualenv/bin/activate
+
 rm -r $DATA_DIR/$SITE_NAME/post_docs
 rm -r $DATA_DIR/$SITE_NAME/post_doc_indices
 mkdir -p $DATA_DIR/$SITE_NAME/post_docs
 
-python $SCRIPTS_DIR/data_generator.py   --posts_xml $DATADUMP_DIR/$SITE_NAME/Posts.xml \
-                                        --comments_xml $DATADUMP_DIR/$SITE_NAME/Comments.xml \
-                                        --posthistory_xml $DATADUMP_DIR/$SITE_NAME/PostHistory.xml \
-                                        --users_xml $DATADUMP_DIR/$SITE_NAME/Users.xml \
+python $SCRIPTS_DIR/data_generator.py   --posts_xml $DATADUMP_DIR/$SITE_NAME-Posts/Posts.xml \
+                                        --comments_xml $DATADUMP_DIR/$SITE_NAME-Comments/Comments.xml \
+                                        --posthistory_xml $DATADUMP_DIR/$SITE_NAME-PostHistory/PostHistory.xml \
+                                        --users_xml $DATADUMP_DIR/$SITE_NAME-Users/Users.xml \
                                         --word_embeddings $DATA_DIR/word_embeddings.p \
                                         --vocab $DATA_DIR/vocab.p \
                                         --post_vectors $DATA_DIR/$SITE_NAME/post_vectors.p \

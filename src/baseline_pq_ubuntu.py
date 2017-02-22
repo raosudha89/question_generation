@@ -98,32 +98,15 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	ques_out, ques_lstm_params = build_lstm(ques_list, ques_masks_list, N, args.ques_max_len, \
 															 word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	
+	M = theano.shared(np.eye(args.hidden_dim, dtype=np.float32))
+	loss = 0.0
 	pq_preds = [None]*N
-	post_ques = T.concatenate([post_out, ques_out[0]], axis=1)
-	l_post_ques_in = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ques)
-	l_post_ques_dense = lasagne.layers.DenseLayer(l_post_ques_in, num_units=args.hidden_dim,\
-													  nonlinearity=lasagne.nonlinearities.rectify)
-	l_post_ques_dense2 = lasagne.layers.DenseLayer(l_post_ques_dense, num_units=1,\
-													   nonlinearity=lasagne.nonlinearities.sigmoid)
-	pq_preds[0] = lasagne.layers.get_output(l_post_ques_dense2)
-	loss = T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pq_preds[0])), labels[:,0]))
-	for i in range(1, N):
-			post_ques = T.concatenate([post_out, ques_out[i]], axis=1)
-			l_post_ques_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ques)
-			l_post_ques_dense_ = lasagne.layers.DenseLayer(l_post_ques_in_, num_units=args.hidden_dim,\
-															nonlinearity=lasagne.nonlinearities.rectify,\
-															W=l_post_ques_dense.W,\
-															b=l_post_ques_dense.b)
-			l_post_ques_dense2_ = lasagne.layers.DenseLayer(l_post_ques_dense_, num_units=1,\
-															nonlinearity=lasagne.nonlinearities.sigmoid,\
-															W=l_post_ques_dense2.W,\
-															b=l_post_ques_dense2.b)
-			pq_preds[i] = lasagne.layers.get_output(l_post_ques_dense2_)
-			loss += T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pq_preds[i])), labels[:,i]))
-	
-	post_ques_dense_params2 = lasagne.layers.get_all_params(l_post_ques_dense2, trainable=True)
+	for i in range(N):
+		pq_preds[i] = T.sum(T.dot(post_out, M)*ques_out[i], axis=1)
+		pq_preds[i] = lasagne.nonlinearities.sigmoid(pq_preds[i])
+		loss += T.sum(lasagne.objectives.binary_crossentropy(pq_preds[i], labels[:,i]))
 
-	all_params = post_lstm_params + ques_lstm_params + post_ques_dense_params2
+	all_params = post_lstm_params + ques_lstm_params + [M]
 	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
@@ -260,3 +243,4 @@ if __name__ == '__main__':
 	print args
 	print ""
 	main(args)
+	

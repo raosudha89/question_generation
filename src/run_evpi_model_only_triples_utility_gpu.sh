@@ -11,7 +11,7 @@ SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/gpu_virtualenv/bin/activate
 
-THEANO_FLAGS=floatX=float32,device=gpu1 python $SCRIPTS_DIR/evpi_model_only_triples_utility.py \
+THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_only_triples_utility.py \
 												--post_sent_vectors_train $DATA_DIR/$SITE_NAME/post_sent_vectors_train.p \
 												--ques_list_vectors_train $DATA_DIR/$SITE_NAME/ques_list_vectors_train.p \
 												--ans_list_vectors_train $DATA_DIR/$SITE_NAME/ans_list_vectors_train.p \

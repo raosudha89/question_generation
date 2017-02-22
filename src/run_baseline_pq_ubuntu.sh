@@ -10,7 +10,7 @@ SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/gpu_virtualenv/bin/activate
 
-#THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/baseline_pq.py \
+#THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/baseline_pq_ubuntu.py \
 #              --post_vectors $DATA_DIR/$SITE_NAME/post_vectors.p \
 #              --ques_list_vectors $DATA_DIR/$SITE_NAME/ques_list_vectors.p \
 #              --word_embeddings $DATA_DIR/word_embeddings.p \
