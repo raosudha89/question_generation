@@ -59,9 +59,9 @@ def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, wo
 	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
 	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
 	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
-	l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
-	l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
-	out[0] = lasagne.layers.get_output(l_out)
+	# l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
+	# l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
+	out[0] = lasagne.layers.get_output(l_lstm)
 	out[0] = T.mean(out[0] * content_masks_list[0][:,:,None], axis=1)
 	for i in range(1, N):
 		l_in_ = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_list[i])
@@ -87,31 +87,31 @@ def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, wo
 																		nonlinearity=l_lstm.nonlinearity_cell),\
 											peepholes=False,\
 											)
-		l_lstm_back_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_, backwards=True, \
-											ingate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_ingate,\
-																		W_hid=l_lstm_back.W_hid_to_ingate,\
-																		b=l_lstm_back.b_ingate,\
-																		nonlinearity=l_lstm_back.nonlinearity_ingate),\
-											outgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_outgate,\
-																		W_hid=l_lstm_back.W_hid_to_outgate,\
-																		b=l_lstm_back.b_outgate,\
-																		nonlinearity=l_lstm_back.nonlinearity_outgate),\
-											forgetgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_forgetgate,\
-																		W_hid=l_lstm_back.W_hid_to_forgetgate,\
-																		b=l_lstm_back.b_forgetgate,\
-																		nonlinearity=l_lstm_back.nonlinearity_forgetgate),\
-											cell=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_cell,\
-																		W_hid=l_lstm_back.W_hid_to_cell,\
-																		b=l_lstm_back.b_cell,\
-																		nonlinearity=l_lstm_back.nonlinearity_cell),\
-											peepholes=False,\
-											)
-		l_out_ = lasagne.layers.ElemwiseSumLayer([l_lstm_, l_lstm_back_])
-		out[i] = lasagne.layers.get_output(l_out_)
+		# l_lstm_back_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_, backwards=True, \
+		# 									ingate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_ingate,\
+		# 																W_hid=l_lstm_back.W_hid_to_ingate,\
+		# 																b=l_lstm_back.b_ingate,\
+		# 																nonlinearity=l_lstm_back.nonlinearity_ingate),\
+		# 									outgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_outgate,\
+		# 																W_hid=l_lstm_back.W_hid_to_outgate,\
+		# 																b=l_lstm_back.b_outgate,\
+		# 																nonlinearity=l_lstm_back.nonlinearity_outgate),\
+		# 									forgetgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_forgetgate,\
+		# 																W_hid=l_lstm_back.W_hid_to_forgetgate,\
+		# 																b=l_lstm_back.b_forgetgate,\
+		# 																nonlinearity=l_lstm_back.nonlinearity_forgetgate),\
+		# 									cell=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_cell,\
+		# 																W_hid=l_lstm_back.W_hid_to_cell,\
+		# 																b=l_lstm_back.b_cell,\
+		# 																nonlinearity=l_lstm_back.nonlinearity_cell),\
+		# 									peepholes=False,\
+		# 									)
+		# l_out_ = lasagne.layers.ElemwiseSumLayer([l_lstm_, l_lstm_back_])
+		out[i] = lasagne.layers.get_output(l_lstm_)
 		out[i] = T.mean(out[i] * content_masks_list[i][:,:,None], axis=1)
 	l_emb.params[l_emb.W].remove('trainable')
-	params = lasagne.layers.get_all_params(l_out, trainable=True)
-	print 'Params in lstm: ', lasagne.layers.count_params(l_out)
+	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
+	print 'Params in lstm: ', lasagne.layers.count_params(l_lstm)
 	return out, params
 
 def build_lstm_posts(posts, post_masks, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
@@ -121,16 +121,16 @@ def build_lstm_posts(posts, post_masks, max_len, word_embeddings, word_emb_dim, 
 	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
 	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
 	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
-	l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
-	l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
+	# l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
+	# l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
 	# l_reshape = lasagne.layers.ReshapeLayer(l_sum, (-1, hidden_dim))
 	# l_dense = lasagne.layers.DenseLayer(l_reshape, num_units=hidden_dim, nonlinearity=lasagne.nonlinearities.rectify)
 	# l_out = lasagne.layers.ReshapeLayer(l_dense, (batch_size, max_len, hidden_dim))
-	out = lasagne.layers.get_output(l_out)
+	out = lasagne.layers.get_output(l_lstm)
 	out = T.mean(out * post_masks[:,:,None], axis=1)
 	l_emb.params[l_emb.W].remove('trainable')
-	params = lasagne.layers.get_all_params(l_out, trainable=True)
-	print 'Params in post_lstm: ', lasagne.layers.count_params(l_out)
+	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
+	print 'Params in post_lstm: ', lasagne.layers.count_params(l_lstm)
 	return out, params
 
 def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
