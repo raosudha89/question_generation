@@ -46,16 +46,20 @@ def main(args):
 			ques_list_vectors_test.append(ques_list_vectors[i])	
 			ans_list_vectors_test.append(ans_list_vectors[i])	
 			post_ids_test.append(post_ids[i])	
-			utility_post_vectors_test.append(utility_post_vectors[i])	
-			utility_post_sent_vectors_test.append(utility_post_sent_vectors[i])	
-			utility_labels_test.append(utility_labels[i])	
-			utility_post_ids_test.append(utility_post_ids[i])	
 		else:
 			post_vectors_train.append(post_vectors[i])	
 			post_sent_vectors_train.append(post_sent_vectors[i])	
 			ques_list_vectors_train.append(ques_list_vectors[i])	
 			ans_list_vectors_train.append(ans_list_vectors[i])	
 			post_ids_train.append(post_ids[i])	
+
+	for i, utility_post_id in enumerate(utility_post_ids):
+		if utility_post_id in human_evald_post_ids:
+			utility_post_vectors_test.append(utility_post_vectors[i])	
+			utility_post_sent_vectors_test.append(utility_post_sent_vectors[i])	
+			utility_labels_test.append(utility_labels[i])	
+			utility_post_ids_test.append(utility_post_ids[i])	
+		else:
 			utility_post_vectors_train.append(utility_post_vectors[i])	
 			utility_post_sent_vectors_train.append(utility_post_sent_vectors[i])	
 			utility_labels_train.append(utility_labels[i])	

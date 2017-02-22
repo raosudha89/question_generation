@@ -536,7 +536,7 @@ def main(args):
 	print 'generating data'
 	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
 					generate_data(post_sent_vectors, ques_list_vectors, ans_list_vectors, args)
-	post_sents_test, post_sent_masks_test, ques_list_test, ques_masks_list_test, ans_list_test, ans_masks_list_test, labels_test= \
+	post_sents_test, post_sent_masks_test, ques_list_test, ques_masks_list_test, ans_list_test, ans_masks_list_test = \
 					generate_data(post_sent_vectors_test, ques_list_vectors_test, ans_list_vectors_test, args)
 	print 'done! Time taken: ', time.time() - start
 

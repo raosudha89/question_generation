@@ -18,13 +18,11 @@ def get_data_masks(content, max_len):
 		data_mask = np.concatenate((np.ones(len(content)), np.zeros(max_len-len(content))), axis=0)
 	return data, data_mask
 
-def generate_data(posts, post_sents,  ques_list, ans_list, args):
-	data_size = len(post_sents)
+def generate_data(posts, ques_list, ans_list, args):
+	data_size = len(posts)
 	data_posts = np.zeros((data_size, args.post_max_len), dtype=np.int32)
 	data_post_masks = np.zeros((data_size, args.post_max_len), dtype=np.float32)
-	data_post_sents = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.int32)
-	data_post_sent_masks = np.zeros((data_size, args.post_max_sents, args.post_max_sent_len), dtype=np.float32)
-
+	
 	N = args.no_of_candidates	
 	data_ques_list = np.zeros((data_size, N, args.ques_max_len), dtype=np.int32)
 	data_ques_masks_list = np.zeros((data_size, N, args.ques_max_len), dtype=np.float32)
@@ -34,63 +32,105 @@ def generate_data(posts, post_sents,  ques_list, ans_list, args):
 
 	for i in range(data_size):
 		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], args.post_max_len)
-		for j in range(min(args.post_max_sents, len(post_sents[i]))):
-			data_post_sents[i][j], data_post_sent_masks[i][j] = get_data_masks(post_sents[i][j], args.post_max_sent_len)
 		for j in range(N):
 			data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[i][j], args.ques_max_len)
 			data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[i][j], args.ans_max_len)
+		# data_ques_list[i][0], data_ques_masks_list[i][0] = get_data_masks(ques_list[i][0], args.ques_max_len)
+		# data_ans_list[i][0], data_ans_masks_list[i][0] = get_data_masks(ans_list[i][0], args.ans_max_len)
+		# for j in range(1, N):
+		# 	rand_index = random.randint(0, data_size-1)
+		# 	data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[rand_index][j], args.ques_max_len)
+		# 	data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[rand_index][j], args.ans_max_len)
 
-	return data_posts, data_post_masks, data_post_sents, data_post_sent_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list
+	return data_posts, data_post_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list
 
-def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
+def build_gru(content_list, content_masks_list, N, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
 	out = [None]*N
 	l_in = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_list[0])
 	l_mask = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_masks_list[0])
 	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
 	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
-	#l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
-	out[0] = lasagne.layers.get_output(l_emb)
+	
+
+def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
+	out = [None]*N
+	l_in = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_list[0])
+	l_mask = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_masks_list[0])
+	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
+	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
+	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
+	l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
+	l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
+	out[0] = lasagne.layers.get_output(l_out)
 	out[0] = T.mean(out[0] * content_masks_list[0][:,:,None], axis=1)
 	for i in range(1, N):
 		l_in_ = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_list[i])
 		l_mask_ = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_masks_list[i])
-		#l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, word_emb_dim, W=l_emb.W)
-		l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, hidden_dim, W=l_emb.W)
-		# l_lstm_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_,\
-		# 							ingate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_ingate,\
-		# 														W_hid=l_lstm.W_hid_to_ingate,\
-		# 														b=l_lstm.b_ingate,\
-		# 														nonlinearity=l_lstm.nonlinearity_ingate),\
-		# 							outgate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_outgate,\
-		# 														W_hid=l_lstm.W_hid_to_outgate,\
-		# 														b=l_lstm.b_outgate,\
-		# 														nonlinearity=l_lstm.nonlinearity_outgate),\
-		# 							forgetgate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_forgetgate,\
-		# 														W_hid=l_lstm.W_hid_to_forgetgate,\
-		# 														b=l_lstm.b_forgetgate,\
-		# 														nonlinearity=l_lstm.nonlinearity_forgetgate),\
-		# 							cell=lasagne.layers.Gate(W_in=l_lstm.W_in_to_cell,\
-		# 														W_hid=l_lstm.W_hid_to_cell,\
-		# 														b=l_lstm.b_cell,\
-		# 														nonlinearity=l_lstm.nonlinearity_cell),\
-		# 							peepholes=False,\
-		# 							)
-		out[i] = lasagne.layers.get_output(l_emb_)
+		l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, word_emb_dim, W=l_emb.W)
+		#l_emb_ = lasagne.layers.EmbeddingLayer(l_in_, len_voc, hidden_dim, W=l_emb.W)
+		l_lstm_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_,\
+											ingate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_ingate,\
+																		W_hid=l_lstm.W_hid_to_ingate,\
+																		b=l_lstm.b_ingate,\
+																		nonlinearity=l_lstm.nonlinearity_ingate),\
+											outgate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_outgate,\
+																		W_hid=l_lstm.W_hid_to_outgate,\
+																		b=l_lstm.b_outgate,\
+																		nonlinearity=l_lstm.nonlinearity_outgate),\
+											forgetgate=lasagne.layers.Gate(W_in=l_lstm.W_in_to_forgetgate,\
+																		W_hid=l_lstm.W_hid_to_forgetgate,\
+																		b=l_lstm.b_forgetgate,\
+																		nonlinearity=l_lstm.nonlinearity_forgetgate),\
+											cell=lasagne.layers.Gate(W_in=l_lstm.W_in_to_cell,\
+																		W_hid=l_lstm.W_hid_to_cell,\
+																		b=l_lstm.b_cell,\
+																		nonlinearity=l_lstm.nonlinearity_cell),\
+											peepholes=False,\
+											)
+		l_lstm_back_ = lasagne.layers.LSTMLayer(l_emb_, hidden_dim, mask_input=l_mask_, backwards=True, \
+											ingate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_ingate,\
+																		W_hid=l_lstm_back.W_hid_to_ingate,\
+																		b=l_lstm_back.b_ingate,\
+																		nonlinearity=l_lstm_back.nonlinearity_ingate),\
+											outgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_outgate,\
+																		W_hid=l_lstm_back.W_hid_to_outgate,\
+																		b=l_lstm_back.b_outgate,\
+																		nonlinearity=l_lstm_back.nonlinearity_outgate),\
+											forgetgate=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_forgetgate,\
+																		W_hid=l_lstm_back.W_hid_to_forgetgate,\
+																		b=l_lstm_back.b_forgetgate,\
+																		nonlinearity=l_lstm_back.nonlinearity_forgetgate),\
+											cell=lasagne.layers.Gate(W_in=l_lstm_back.W_in_to_cell,\
+																		W_hid=l_lstm_back.W_hid_to_cell,\
+																		b=l_lstm_back.b_cell,\
+																		nonlinearity=l_lstm_back.nonlinearity_cell),\
+											peepholes=False,\
+											)
+		l_out_ = lasagne.layers.ElemwiseSumLayer([l_lstm_, l_lstm_back_])
+		out[i] = lasagne.layers.get_output(l_out_)
 		out[i] = T.mean(out[i] * content_masks_list[i][:,:,None], axis=1)
-	params = lasagne.layers.get_all_params(l_emb, trainable=True)
-	
+	l_emb.params[l_emb.W].remove('trainable')
+	params = lasagne.layers.get_all_params(l_out, trainable=True)
+	print 'Params in lstm: ', lasagne.layers.count_params(l_out)
 	return out, params
 
 def build_lstm_posts(posts, post_masks, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
 
 	l_in = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=posts)
 	l_mask = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=post_masks)
-	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
-	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
+	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
+	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
 	l_lstm = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, )
-	out = lasagne.layers.get_output(l_lstm)
+	l_lstm_back = lasagne.layers.LSTMLayer(l_emb, hidden_dim, mask_input=l_mask, backwards=True)
+	l_out = lasagne.layers.ElemwiseSumLayer([l_lstm, l_lstm_back])
+	# l_reshape = lasagne.layers.ReshapeLayer(l_sum, (-1, hidden_dim))
+	# l_dense = lasagne.layers.DenseLayer(l_reshape, num_units=hidden_dim, nonlinearity=lasagne.nonlinearities.rectify)
+	# l_out = lasagne.layers.ReshapeLayer(l_dense, (batch_size, max_len, hidden_dim))
+	out = lasagne.layers.get_output(l_out)
 	out = T.mean(out * post_masks[:,:,None], axis=1)
-	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
+	l_emb.params[l_emb.W].remove('trainable')
+	params = lasagne.layers.get_all_params(l_out, trainable=True)
+	print 'Params in post_lstm: ', lasagne.layers.count_params(l_out)
 	return out, params
 
 def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
@@ -98,8 +138,6 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	# input theano vars
 	posts = T.imatrix()
 	post_masks = T.fmatrix()
-	# post_sents = T.itensor3()
-	# post_sent_masks = T.ftensor3()
 	ques_list = T.itensor3()
 	ques_masks_list = T.ftensor3()
 	ans_list = T.itensor3()
@@ -107,33 +145,21 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	labels = T.imatrix()
 
 	post_out, post_lstm_params = build_lstm_posts(posts, post_masks, args.post_max_len, \
-												  word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
-	# post_out, post_lstm_params = build_lstm(post_sents, post_sent_masks, args.post_max_sents, args.post_max_sent_len, \
-	# 										word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
+												  word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
 	ques_out, ques_lstm_params = build_lstm(ques_list, ques_masks_list, N, args.ques_max_len, \
 											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	ans_out, ans_lstm_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
 											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
-	
-	#post_out = T.mean(post_out, axis=0)
-	# post_concatenate = T.concatenate(post_out, axis=1)
-	# l_post_concatenate = lasagne.layers.InputLayer(shape=(args.batch_size, args.post_max_sents*args.hidden_dim), input_var=post_concatenate)
-	# l_post_dense = lasagne.layers.DenseLayer(l_post_concatenate, num_units=args.hidden_dim,\
-	# 												nonlinearity=lasagne.nonlinearities.rectify)
-	# l_post_dense2 = lasagne.layers.DenseLayer(l_post_dense, num_units=args.hidden_dim,\
-	# 												nonlinearity=lasagne.nonlinearities.rectify)
-	# post_out = lasagne.layers.get_output(l_post_dense2)
 	
 	pqa_preds = [None]*N
 	post_ques_ans = T.concatenate([post_out, ques_out[0], ans_out[0]], axis=1)
 	l_post_ques_ans_in = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ques_ans)
 	l_post_ques_ans_dense = lasagne.layers.DenseLayer(l_post_ques_ans_in, num_units=args.hidden_dim,\
 													  nonlinearity=lasagne.nonlinearities.rectify)
-
 	l_post_ques_ans_dense2 = lasagne.layers.DenseLayer(l_post_ques_ans_dense, num_units=1,\
 													   nonlinearity=lasagne.nonlinearities.sigmoid)
 	pqa_preds[0] = lasagne.layers.get_output(l_post_ques_ans_dense2)
-	loss = T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pqa_preds[0])), labels[:,0]))
+	loss = T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[0], labels[:,0]))
 	for i in range(1, N):
 			post_ques_ans = T.concatenate([post_out, ques_out[i], ans_out[i]], axis=1)
 			l_post_ques_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ques_ans)
@@ -146,40 +172,33 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 															W=l_post_ques_ans_dense2.W,\
 															b=l_post_ques_ans_dense2.b)
 			pqa_preds[i] = lasagne.layers.get_output(l_post_ques_ans_dense2_)
-			loss += T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pqa_preds[i])), labels[:,i]))
+			loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i], labels[:,i]))
 	
-	#post_dense2_params = lasagne.layers.get_all_params(l_post_dense2, trainable=True)
 	post_ques_ans_dense2_params = lasagne.layers.get_all_params(l_post_ques_ans_dense2, trainable=True)
 
-	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params \
-				 + post_ques_ans_dense2_params
-				# + post_dense2_params 
-	
+	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense2_params
+	print 'Params in concat ', lasagne.layers.count_params(l_post_ques_ans_dense2)
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
 	
-	# train_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-	# 								[loss] + pqa_preds, updates=updates)
-	# dev_fn = theano.function([post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-	# 								[loss] + pqa_preds,)
 	train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
 									[loss] + pqa_preds, updates=updates)
 	dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
 									[loss] + pqa_preds,)
 	return train_fn, dev_fn
 
-def iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
+def iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, batch_size, shuffle=False):
 	if shuffle:
-		indices = np.arange(post_sents.shape[0])
+		indices = np.arange(posts.shape[0])
 		np.random.shuffle(indices)
 	data = []
-	for start_idx in range(0, post_sents.shape[0] - batch_size + 1, batch_size):
+	for start_idx in range(0, posts.shape[0] - batch_size + 1, batch_size):
 		if shuffle:
 			excerpt = indices[start_idx:start_idx + batch_size]
 		else:
 			excerpt = slice(start_idx, start_idx + batch_size)
-		data.append([post_sents[excerpt], post_sent_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt]])
+		data.append([posts[excerpt], post_masks[excerpt], ques_list[excerpt], ques_masks_list[excerpt], ans_list[excerpt], ans_masks_list[excerpt]])
 	return data
 
 def get_rank(preds, labels):
@@ -218,8 +237,8 @@ def validate(val_fn, fold_name, epoch, fold, args):
 	total = 0
 	_lambda = 0.5
 	N = args.no_of_candidates
-	post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
-	for p, pm, q, qm, a, am in iterate_minibatches(post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list,\
+	posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = fold
+	for p, pm, q, qm, a, am in iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list,\
 														 args.batch_size, shuffle=True):
 		l = np.zeros((args.batch_size, N), dtype=np.int32)
 		l[:,0] = 1
@@ -251,9 +270,26 @@ def validate(val_fn, fold_name, epoch, fold, args):
 					corr*1.0/total, mrr*1.0/total, time.time()-start)
 	print lstring
 
+def shuffle_data(p, pm, q, qm, a, am):
+	sp = [None]*len(p)
+	spm = [None]*len(pm)
+	sq = [None]*len(q)
+	sqm = [None]*len(qm)
+	sa = [None]*len(a)
+	sam = [None]*len(am)
+	indexes = range(len(p))
+	random.shuffle(indexes)
+	for i, index in enumerate(indexes):
+		sp[i] = p[index]
+		spm[i] = pm[index]
+		sq[i] = q[index]
+		sqm[i] = qm[index]
+		sa[i] = a[index]
+		sam[i] = am[index]
+	return np.array(sp), np.array(spm), np.array(sq), np.array(sqm), np.array(sa), np.array(sam)
+		
 def main(args):
 	post_vectors = p.load(open(args.post_vectors, 'rb'))
-	post_sent_vectors = p.load(open(args.post_sent_vectors, 'rb'))
 	ques_list_vectors = p.load(open(args.ques_list_vectors, 'rb'))
 	ans_list_vectors = p.load(open(args.ans_list_vectors, 'rb'))
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))
@@ -267,19 +303,19 @@ def main(args):
 
 	start = time.time()
 	print 'generating data'
-	posts, post_masks, post_sents, post_sent_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
-					generate_data(post_vectors, post_sent_vectors, ques_list_vectors, ans_list_vectors, args)
+	posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
+					generate_data(post_vectors, ques_list_vectors, ans_list_vectors, args)
 	print 'done! Time taken: ', time.time() - start
 
-	t_size = int(len(post_sents)*0.8)
-	# train = [post_sents[:t_size], post_sent_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
-	# dev = [post_sents[t_size:], post_sent_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
+	# posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
+	# 				shuffle_data(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list)
+	t_size = int(len(posts)*0.8)
 	
 	train = [posts[:t_size], post_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
 	dev = [posts[t_size:], post_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
 
 	print 'Size of training data: ', t_size
-	print 'Size of dev data: ', len(post_sents)-t_size
+	print 'Size of dev data: ', len(posts)-t_size
 
 	start = time.time()
 	print 'compiling graph...'

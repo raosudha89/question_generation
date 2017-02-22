@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N splitting
+#PBS -N split_english
 #PBS -l pmem=64g
 #PBS -m abe
-#PBS -l walltime=12:00:00 
+#PBS -l walltime=4:00:00 
 
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com

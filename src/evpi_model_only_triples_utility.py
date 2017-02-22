@@ -89,7 +89,7 @@ def build_utility_lstm(utility_post_list, utility_post_masks_list, post_max_sent
 		utility_post_out[i] = lasagne.layers.get_output(l_lstm_)
 		utility_post_out[i] = T.mean(utility_post_out[i] * utility_post_masks_list[i][:,:,None], axis=1)
 	
-	#l_emb.params[l_emb.W].remove('trainable')
+	l_emb.params[l_emb.W].remove('trainable')
 	params = lasagne.layers.get_all_params(l_lstm, trainable=True)
 				# lasagne.layers.get_all_params(l_emb, trainable=True) 
 		
@@ -116,9 +116,9 @@ def build_evpi_model(word_embeddings, len_voc, word_emb_dim, args, freeze=False)
 	# l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_drop, num_units=args.hidden_dim,\
 	l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_out, num_units=args.hidden_dim,\
 													nonlinearity=lasagne.nonlinearities.rectify)
-	for i in range(10):
-		l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_dense, num_units=args.hidden_dim,\
-														nonlinearity=lasagne.nonlinearities.rectify)
+	# for i in range(10):
+	# 	l_utility_post_dense = lasagne.layers.DenseLayer(l_utility_post_dense, num_units=args.hidden_dim,\
+	# 													nonlinearity=lasagne.nonlinearities.rectify)
 	l_utility_post_dense2 = lasagne.layers.DenseLayer(l_utility_post_dense, num_units=1,\
 													nonlinearity=lasagne.nonlinearities.sigmoid)
 	utility_preds = lasagne.layers.get_output(l_utility_post_dense2)
