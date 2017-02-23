@@ -179,12 +179,13 @@ def get_rank(preds, labels):
 	rank = np.where(desc_sort_index_preds==correct)[0][0]
 	return rank+1
 
-def shuffle(q, qm, a, am, l):
+def shuffle(q, qm, a, am, l, r):
 	shuffled_q = np.zeros((len(q), len(q[0]), len(q[0][0])), dtype=np.int32)
 	shuffled_qm = np.zeros((len(qm), len(qm[0]), len(qm[0][0])), dtype=np.float32)
 	shuffled_a = np.zeros((len(a), len(a[0]), len(a[0][0])), dtype=np.int32)
 	shuffled_am = np.zeros((len(am), len(am[0]), len(am[0][0])), dtype=np.float32)
 	shuffled_l = np.zeros((len(l), len(l[0])), dtype=np.int32)
+	shuffled_r = np.zeros((len(r), len(r[0])), dtype=np.int32)
 	
 	for i in range(len(q)):
 		indexes = range(len(q[i]))
@@ -195,8 +196,9 @@ def shuffle(q, qm, a, am, l):
 			shuffled_a[i][j] = a[i][index]
 			shuffled_am[i][j] = am[i][index]
 			shuffled_l[i][j] = l[i][index]
+			shuffled_r[i][j] = r[i][index]
 			
-	return shuffled_q, shuffled_qm, shuffled_a, shuffled_am, shuffled_l
+	return shuffled_q, shuffled_qm, shuffled_a, shuffled_am, shuffled_l, shuffled_r
 
 def write_test_predictions(out_file, postId, utilities, ranks):
 	lstring = "[%s]: " % (postId)
@@ -229,6 +231,7 @@ def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
 	for p, pm, q, qm, a, am, ids in iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list,\
 														 post_ids, args.batch_size, shuffle=True):
 		l = np.zeros((args.batch_size, N), dtype=np.int32)
+		r = np.zeros((args.batch_size, N), dtype=np.int32)
 		l[:,0] = 1
 		for j in range(N):
 			r[:,j] = j
@@ -367,22 +370,25 @@ def main(args):
 
 if __name__ == '__main__':
 	argparser = argparse.ArgumentParser(sys.argv[0])
-	argparser.add_argument("--post_vectors", type = str)
-	argparser.add_argument("--post_sent_vectors", type = str)
-	argparser.add_argument("--ques_list_vectors", type = str)
-	argparser.add_argument("--ans_list_vectors", type = str)
+	argparser.add_argument("--post_ids_train", type = str)
+	argparser.add_argument("--post_vectors_train", type = str)
+	argparser.add_argument("--ques_list_vectors_train", type = str)
+	argparser.add_argument("--ans_list_vectors_train", type = str)
+	argparser.add_argument("--post_ids_test", type = str)
+	argparser.add_argument("--post_vectors_test", type = str)
+	argparser.add_argument("--ques_list_vectors_test", type = str)
+	argparser.add_argument("--ans_list_vectors_test", type = str)
 	argparser.add_argument("--word_embeddings", type = str)
-	argparser.add_argument("--batch_size", type = int, default = 200)
+	argparser.add_argument("--batch_size", type = int, default = 100)
 	argparser.add_argument("--no_of_epochs", type = int, default = 20)
 	argparser.add_argument("--hidden_dim", type = int, default = 100)
 	argparser.add_argument("--no_of_candidates", type = int, default = 10)
 	argparser.add_argument("--learning_rate", type = float, default = 0.001)
 	argparser.add_argument("--rho", type = float, default = 1e-5)
 	argparser.add_argument("--post_max_len", type = int, default = 100)
-	argparser.add_argument("--post_max_sents", type = int, default = 10)
-	argparser.add_argument("--post_max_sent_len", type = int, default = 10)
 	argparser.add_argument("--ques_max_len", type = int, default = 10)
 	argparser.add_argument("--ans_max_len", type = int, default = 10)
+	argparser.add_argument("--_lambda", type = float, default = 0.5)
 	argparser.add_argument("--test_predictions_output", type = str)
 	argparser.add_argument("--dev_predictions_output", type = str)
 	args = argparser.parse_args()
