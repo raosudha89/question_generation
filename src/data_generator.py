@@ -3,7 +3,6 @@ import argparse
 from parse import *
 from post_ques_ans_generator import * 
 from helper import *
-from BM25 import *
 import time
 import numpy as np
 import cPickle as p

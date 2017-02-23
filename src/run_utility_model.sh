@@ -3,15 +3,15 @@
 DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
-SITE_NAME=askubuntu.com
+#SITE_NAME=askubuntu.com
 #SITE_NAME=english.stackexchange.com
 #SITE_NAME=superuser.com
-#SITE_NAME=askubuntu_unix_superuser
+SITE_NAME=askubuntu_unix_superuser
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 source /fs/clip-amr/gpu_virtualenv/bin/activate
 
-THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_fullpostLSTM.py \
+THEANO_FLAGS=floatX=float32,device=gpu1 python $SCRIPTS_DIR/utility_model.py \
 												--post_ids_train $DATA_DIR/$SITE_NAME/post_ids_train.p \
 												--post_vectors_train $DATA_DIR/$SITE_NAME/post_vectors_train.p \
 												--ques_list_vectors_train $DATA_DIR/$SITE_NAME/ques_list_vectors_train.p \
@@ -27,7 +27,7 @@ THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/evpi_model_fullpostL
 												--word_embeddings $DATA_DIR/word_embeddings.p \
 												--hidden_dim 100 \
 												--batch_size 100 \
-												--no_of_epochs 20 \
+												--no_of_epochs 100 \
 												--no_of_candidates 10\
 												--_lambda 0.5 \
 												--dev_predictions_output $DATA_DIR/$SITE_NAME/dev_predictions_orgsetting.out \
