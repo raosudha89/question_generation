@@ -8,6 +8,7 @@ from collections import Counter
 import pdb
 import time
 import random, math
+DEPTH=2
 
 def get_data_masks(content, max_len):
 	if len(content) > max_len:
@@ -32,17 +33,17 @@ def generate_data(posts, ques_list, ans_list, args):
 
 	for i in range(data_size):
 		data_posts[i], data_post_masks[i] = get_data_masks(posts[i], args.post_max_len)
-		# for j in range(N):
-		# 	data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[i][j], args.ques_max_len)
-		# 	data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[i][j], args.ans_max_len)
-		
+		for j in range(N):
+			data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[i][j], args.ques_max_len)
+			data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[i][j], args.ans_max_len)
+			
 		#Random candidates
-		data_ques_list[i][0], data_ques_masks_list[i][0] = get_data_masks(ques_list[i][0], args.ques_max_len)
-		data_ans_list[i][0], data_ans_masks_list[i][0] = get_data_masks(ans_list[i][0], args.ans_max_len)
-		for j in range(1, N):
-			rand_index = random.randint(0, data_size-1)
-			data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[rand_index][j], args.ques_max_len)
-			data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[rand_index][j], args.ans_max_len)
+		# data_ques_list[i][0], data_ques_masks_list[i][0] = get_data_masks(ques_list[i][0], args.ques_max_len)
+		# data_ans_list[i][0], data_ans_masks_list[i][0] = get_data_masks(ans_list[i][0], args.ans_max_len)
+		# for j in range(1, N):
+		# 	rand_index = random.randint(0, data_size-1)
+		# 	data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[rand_index][j], args.ques_max_len)
+		# 	data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[rand_index][j], args.ans_max_len)
 
 	return data_posts, data_post_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list
 
@@ -116,40 +117,56 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	
 	pqa_preds = [None]*(N*N)
-	squared_errors = [None]*(N*N)
 	post_ques_ans = T.concatenate([post_out, ques_out[0], ans_out[0]], axis=1)
+	# post_ques_ans = T.concatenate([post_out, ans_out[0]], axis=1)
 	l_post_ques_ans_in = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ques_ans)
-	l_post_ques_ans_dense = lasagne.layers.DenseLayer(l_post_ques_ans_in, num_units=args.hidden_dim,\
-													  nonlinearity=lasagne.nonlinearities.rectify)
-	l_post_ques_ans_dense2 = lasagne.layers.DenseLayer(l_post_ques_ans_dense, num_units=1,\
+	l_post_ques_ans_denses = [None]*DEPTH
+	for k in range(DEPTH):
+		if k == 0:
+			l_post_ques_ans_denses[k] = lasagne.layers.DenseLayer(l_post_ques_ans_in, num_units=args.hidden_dim,\
+																	nonlinearity=lasagne.nonlinearities.rectify)
+		else:
+			l_post_ques_ans_denses[k] = lasagne.layers.DenseLayer(l_post_ques_ans_denses[k-1], num_units=args.hidden_dim,\
+																	nonlinearity=lasagne.nonlinearities.rectify)
+	l_post_ques_ans_dense = lasagne.layers.DenseLayer(l_post_ques_ans_denses[-1], num_units=1,\
 													   nonlinearity=lasagne.nonlinearities.sigmoid)
-	pqa_preds[0] = lasagne.layers.get_output(l_post_ques_ans_dense2)
-	loss = T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[0], labels[:,0]))
-	squared_errors[0] = lasagne.objectives.squared_error(ans_out[0], ans_out[0])
+	pqa_preds[0] = lasagne.layers.get_output(l_post_ques_ans_dense)
+	loss = 0.0
 	for i in range(N):
 		for j in range(N):
 			if i == 0 and j == 0:
 				continue
 			post_ques_ans = T.concatenate([post_out, ques_out[i], ans_out[j]], axis=1)
+			# post_ques_ans = T.concatenate([post_out, ans_out[i]], axis=1)
 			l_post_ques_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ques_ans)
-			l_post_ques_ans_dense_ = lasagne.layers.DenseLayer(l_post_ques_ans_in_, num_units=args.hidden_dim,\
-															nonlinearity=lasagne.nonlinearities.rectify,\
-															W=l_post_ques_ans_dense.W,\
-															b=l_post_ques_ans_dense.b)
-			l_post_ques_ans_dense2_ = lasagne.layers.DenseLayer(l_post_ques_ans_dense_, num_units=1,\
-															nonlinearity=lasagne.nonlinearities.sigmoid,\
-															W=l_post_ques_ans_dense2.W,\
-															b=l_post_ques_ans_dense2.b)
-			pqa_preds[i*N+j] = lasagne.layers.get_output(l_post_ques_ans_dense2_)
-			squared_errors[i*N+j] = lasagne.objectives.squared_error(ans_out[i], ans_out[j])
-
-	for i in range(N):
+			for k in range(DEPTH):
+				if k == 0:
+					l_post_ques_ans_dense_ = lasagne.layers.DenseLayer(l_post_ques_ans_in_, num_units=args.hidden_dim,\
+																		nonlinearity=lasagne.nonlinearities.rectify,\
+																		W=l_post_ques_ans_denses[k].W,\
+																		b=l_post_ques_ans_denses[k].b)
+				else:
+					l_post_ques_ans_dense_ = lasagne.layers.DenseLayer(l_post_ques_ans_dense_, num_units=args.hidden_dim,\
+																		nonlinearity=lasagne.nonlinearities.rectify,\
+																		W=l_post_ques_ans_denses[k].W,\
+																		b=l_post_ques_ans_denses[k].b)
+			l_post_ques_ans_dense_ = lasagne.layers.DenseLayer(l_post_ques_ans_dense_, num_units=1,\
+														   nonlinearity=lasagne.nonlinearities.sigmoid)
+			pqa_preds[i*N+j] = lasagne.layers.get_output(l_post_ques_ans_dense_)
+		
 		loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i*N+i], labels[:,i]))
-	
-	post_ques_ans_dense2_params = lasagne.layers.get_all_params(l_post_ques_ans_dense2, trainable=True)
 
-	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense2_params
-	print 'Params in concat ', lasagne.layers.count_params(l_post_ques_ans_dense2)
+	squared_errors = [None]*(N*N)
+	for i in range(N):
+		for j in range(N):
+			squared_errors[i*N+j] = lasagne.objectives.squared_error(ques_out[i], ans_out[j])
+
+	post_ques_ans_dense_params = lasagne.layers.get_all_params(l_post_ques_ans_dense, trainable=True)
+	
+	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense_params
+			  
+	print 'Params in concat ', lasagne.layers.count_params(l_post_ques_ans_dense)
+	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
@@ -219,7 +236,7 @@ def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
 	corr = 0
 	mrr = 0
 	total = 0
-	_lambda = 1.0
+	_lambda = 0.5
 	N = args.no_of_candidates
 	recall = [0]*N
 
@@ -242,20 +259,27 @@ def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
 		am = np.transpose(am, (1, 0, 2))
 		out = val_fn(p, pm, q, qm, a, am, l)
 		loss = out[0]
-		preds = out[1:1+(N*N)]
-		preds = np.transpose(preds, (1, 0, 2))
-		preds = preds[:,:,0]
-		errors = out[1+(N*N):]
-		errors = np.transpose(errors, (1, 0, 2))
-		errors = errors[:,:,0]
+		preds = out[1:1+N*N]
+		preds = np.array(preds)[:,:,0]
+		preds = np.transpose(preds)
+		errors = out[1+N*N:]
+		errors = np.array(errors)[:,:,0]
+		errors = np.transpose(errors)
 		for j in range(args.batch_size):
 			utilities = [0.0]*N
 			for k in range(N):
-				marginalized_sum = 0.0
 				for m in range(N):
-					marginalized_sum += math.exp(-_lambda * errors[j][k*N+m]) 
-				for m in range(N):
-					utilities[k] += (math.exp(-_lambda * errors[j][k*N+m]) / marginalized_sum) * preds[j][k*N+m]
+					# utilities[k] += math.exp(-_lambda * errors[j][k*N+m])*preds[j][k*N+m]
+					utilities[k] += preds[j][k*N+m]
+				# utilities[k] =  preds[j][k*N+k]
+			# for k in range(N):
+			# 	marginalized_sum = 0.0
+			# 	for m in range(N):
+			# 		marginalized_sum += math.exp(-_lambda * errors[j][k*N+m])
+			# 	for m in range(N):
+			# 		utilities[k] += (math.exp(-_lambda * errors[j][k*N+m]) / marginalized_sum) * (pa_out[j][m])
+			# if 'TRAIN' in fold_name and epoch == 5:
+			# 	pdb.set_trace()
 			if out_file:
 				write_test_predictions(out_file, ids[j], utilities, r[j])
 			rank = get_rank(utilities, l[j])
@@ -364,8 +388,9 @@ def main(args):
 	# train network
 	for epoch in range(args.no_of_epochs):
 		validate(train_fn, 'TRAIN', epoch, train, args)
-		validate(dev_fn, '\t DEV', epoch, dev, args, args.dev_predictions_output)
-		validate(dev_fn, '\t TEST', epoch, test, args, args.test_predictions_output)
+		validate(dev_fn, '\t DEV', epoch, dev, args)
+		#validate(dev_fn, '\t DEV', epoch, dev, args, args.dev_predictions_output)
+		#validate(dev_fn, '\t TEST', epoch, test, args, args.test_predictions_output)
 		print "\n"
 
 if __name__ == '__main__':

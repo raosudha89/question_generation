@@ -45,11 +45,25 @@ class PostQuesAnsGenerator:
 			question_indices = get_indices(question_comment.text, vocab)
 			curr_similarity = get_similarity(question_indices, answer_indices, word_embeddings)
 			if curr_similarity > max_similarity:
-				right_question = question_comment.text
+				right_question = question_comment
 				max_similarity = curr_similarity
-		if max_similarity > 0.4:
-			return right_question
-		return None
+		return right_question
+		# if max_similarity > 0.4:
+		# 	return right_question
+		# return None
+
+	def find_first_question(self, question_comment_candidates):
+		first_question = None
+		first_date = None
+		for question_comment in question_comment_candidates:
+			if first_question == None:
+				first_question = question_comment
+				first_date = question_comment.creation_date
+			else:
+				if question_comment.creation_date < first_date:
+					first_question = question_comment
+					first_date = question_comment.creation_date
+		return first_question
 
 	def generate(self, posts, question_comments, posthistories, vocab, word_embeddings):
 		for postId, posthistory in posthistories.iteritems():
@@ -61,15 +75,19 @@ class PostQuesAnsGenerator:
 				continue
 			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)
 			if not answer:
-				continue
-			answer = remove_urls(' '.join(answer))
-			answer = answer.split()
-			#question_comment_candidates = question_comments[postId]
-			#if not question_comment_candidates:
-			#	continue
-			#question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
-			#if not question:
-			#	continue
+				answer = []
+			else:
+				answer = remove_urls(' '.join(answer))
+				answer = answer.split()
+			# question_comment_candidates = question_comments[postId]
+			# if not question_comment_candidates:
+			# 	continue
+			# if answer:
+			# 	question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
+			# else:
+			# 	question = self.find_first_question(question_comment_candidates)
+			# if not question:
+			# 	continue
 			try:
 				question = question_comments[postId]
 				if not question:
@@ -82,6 +100,7 @@ class PostQuesAnsGenerator:
 				# 		continue
 			except:
 				continue 
+
 			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question.text, answer)
 		return self.post_ques_ans_dict
 

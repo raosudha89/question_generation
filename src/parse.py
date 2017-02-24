@@ -67,7 +67,7 @@ class CommentParser:
 		self.comment = defaultdict(None)
 
 	def domain_words(self):
-		return ['duplicate', 'upvote', 'downvote', 'vote', 'related']
+		return ['duplicate', 'upvote', 'downvote', 'vote', 'related', 'upvoted', 'downvoted']
 
 	def get_question(self, text):
 		text = remove_urls(text)
@@ -92,7 +92,7 @@ class CommentParser:
 			return text
 		return None
 
-	def parse_old(self):
+	def parse_all_comments(self):
 		comments_tree = ET.parse(self.filename)
 		for comment in comments_tree.getroot():
 			postId = comment.attrib['PostId']
@@ -103,7 +103,7 @@ class CommentParser:
 				question_comment = QuestionComment(question, creation_date)
 				self.question_comments[postId].append(question_comment)
 
-	def parse(self):
+	def parse_first_comment(self):
 		comments_tree = ET.parse(self.filename)
 		for comment in comments_tree.getroot():
 			postId = comment.attrib['PostId']
