@@ -78,16 +78,16 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 	out_file = open(os.path.join(os.path.dirname(args.post_vectors), "lucene_post_ques_ans_list.log"), 'w') 
 	for postId in lucene_similar_posts:
 		candidate_postIds = lucene_similar_posts[postId]
-		candidate_postIds[0] = postId #making sure first is the original post itself
 		if len(candidate_postIds) < N:
 			continue
+		candidate_postIds[0] = postId #making sure first is the original post itself
 		ques_list = [None]*N
 		k = 0
 		for j in range(len(candidate_postIds)):
 			question_candidate_postIds = lucene_similar_questions[candidate_postIds[j]]
-			question_candidate_postIds[0] = candidate_postIds[j]
 			if len(question_candidate_postIds) < N:
 				continue
+			question_candidate_postIds[0] = candidate_postIds[j]
 			ques_list[k] = [None]*N
 			for m in range(N):
 				ques_list[k][m] = question_candidate_postIds[m]
@@ -100,7 +100,7 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
 		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[postId].post_sents, vocab))
 		out_file.write("Id: " + str(postId) + '\n')
-		out_file.write("Post: " + ' '.join(posts[postId].title) + ' '.join(post_ques_answers[postId].post) + '\n\n')
+		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[postId].post) + '\n\n')
 		ques_list_vector = [None]*N
 		ans_list_vector = [None]*N
 		for k in range(N):
@@ -132,7 +132,7 @@ def write_data_log(post_ques_answers, posts, lucene_similar_posts, args):
 		if len(candidate_postIds) < N:
 			continue
 		out_file.write("Id: " + str(postId) + '\n')
-		out_file.write("Post: " + ' '.join(posts[postId].title) + ' '.join(post_ques_answers[postId].post) + '\n\n')
+		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[postId].post) + '\n\n')
 		for j in range(N):
 			out_file.write("Question: " + ' '.join(post_ques_answers[candidate_postIds[j]].question_comment) + '\n')
 			out_file.write("Answer: " + ' '.join(post_ques_answers[candidate_postIds[j]].answer) + '\n')
