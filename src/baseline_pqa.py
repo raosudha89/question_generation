@@ -8,7 +8,7 @@ from collections import Counter
 import pdb
 import time
 import random, math
-DEPTH = 10
+DEPTH = 5
 
 def get_data_masks(content, max_len):
 	if len(content) > max_len:
@@ -288,6 +288,11 @@ def main(args):
 	ans_list_vectors = p.load(open(args.ans_list_vectors, 'rb'))
 	word_embeddings = p.load(open(args.word_embeddings, 'rb'))
 	word_embeddings = np.asarray(word_embeddings, dtype=np.float32)
+	
+	post_vectors_test = p.load(open(args.post_vectors_test, 'rb'))
+	ques_list_vectors_test = p.load(open(args.ques_list_vectors_test, 'rb'))
+	ans_list_vectors_test = p.load(open(args.ans_list_vectors_test, 'rb'))
+	
 	vocab_size = len(word_embeddings)
 	word_emb_dim = len(word_embeddings[0])
 	freeze = False
@@ -306,7 +311,15 @@ def main(args):
 	t_size = int(len(posts)*0.8)
 	
 	train = [posts[:t_size], post_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size]]
-	dev = [posts[t_size:], post_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
+	# dev = [posts[t_size:], post_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:]]
+
+	dev = [np.concatenate((posts_test, posts[t_size:])), \
+			np.concatenate((post_masks_test, post_masks[t_size:])), \
+			np.concatenate((ques_list_test, ques_list[t_size:])), \
+			np.concatenate((ques_masks_list_test, ques_masks_list[t_size:])), \
+			np.concatenate((ans_list_test, ans_list[t_size:])), \
+			np.concatenate((ans_masks_list_test, ans_masks_list[t_size:])), \
+			np.concatenate((post_ids_test, post_ids[t_size:]))]
 
 	print 'Size of training data: ', t_size
 	print 'Size of dev data: ', len(posts)-t_size
@@ -328,6 +341,9 @@ if __name__ == '__main__':
 	argparser.add_argument("--post_sent_vectors", type = str)
 	argparser.add_argument("--ques_list_vectors", type = str)
 	argparser.add_argument("--ans_list_vectors", type = str)
+	argparser.add_argument("--post_vectors_test", type = str)
+	argparser.add_argument("--ques_list_vectors_test", type = str)
+	argparser.add_argument("--ans_list_vectors_test", type = str)
 	argparser.add_argument("--word_embeddings", type = str)
 	argparser.add_argument("--batch_size", type = int, default = 200)
 	argparser.add_argument("--no_of_epochs", type = int, default = 20)

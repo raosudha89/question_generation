@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N split_askubuntu_v2
+#PBS -N split_askubuntu_v4
 #PBS -l pmem=32g
 #PBS -m abe
 #PBS -q batch
 #PBS -l walltime=12:00:00 
 
-DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v2
+DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v4
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
 SITE_NAME=askubuntu.com

@@ -75,7 +75,9 @@ class PostQuesAnsGenerator:
 				continue
 			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)
 			if not answer:
-				answer = []
+				continue
+			# if not answer:
+			# 	answer = []
 			else:
 				answer = remove_urls(' '.join(answer))
 				answer = answer.split()

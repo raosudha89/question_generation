@@ -1,15 +1,14 @@
 #!/bin/bash
 
 #PBS -S /bin/sh
-#PBS -N data_superuser_v2
+#PBS -N data_superuser_v4
 #PBS -l pmem=64g
 #PBS -m abe
-#PBS -q batch
-#PBS -l walltime=24:00:00 
+#PBS -l walltime=10:00:00 
 
 DATADUMP_DIR=/fs/clip-corpora/stackexchange
 EMB_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
-DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v2
+DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v4
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
 #SITE_NAME=askubuntu.com

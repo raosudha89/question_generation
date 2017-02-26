@@ -16,7 +16,7 @@ source /fs/clip-amr/gpu_virtualenv/bin/activate
 #              --word_embeddings $DATA_DIR/word_embeddings.p \
 #              --batch_size 100 --no_of_epochs 20 --no_of_candidates 10
 
-THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/baseline_pq_ubuntu.py \
+THEANO_FLAGS=floatX=float32,device=gpu0 python $SCRIPTS_DIR/baseline_pq.py \
              --post_vectors $DATA_DIR/$SITE_NAME/post_vectors_train.p \
              --ques_list_vectors $DATA_DIR/$SITE_NAME/ques_list_vectors_train.p \
              --word_embeddings $DATA_DIR/word_embeddings.p \

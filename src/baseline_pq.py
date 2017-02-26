@@ -96,7 +96,7 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	post_out, post_lstm_params = build_lstm_posts(posts, post_masks, args.post_max_len, \
 												  word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	ques_out, ques_lstm_params = build_lstm(ques_list, ques_masks_list, N, args.ques_max_len, \
-															 word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	
 	pq_preds = [None]*N
 	post_ques = T.concatenate([post_out, ques_out[0]], axis=1)
@@ -106,7 +106,7 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	l_post_ques_dense2 = lasagne.layers.DenseLayer(l_post_ques_dense, num_units=1,\
 													   nonlinearity=lasagne.nonlinearities.sigmoid)
 	pq_preds[0] = lasagne.layers.get_output(l_post_ques_dense2)
-	loss = T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pq_preds[0])), labels[:,0]))
+	loss = T.sum(lasagne.objectives.binary_crossentropy(pq_preds[0], labels[:,0]))
 	for i in range(1, N):
 			post_ques = T.concatenate([post_out, ques_out[i]], axis=1)
 			l_post_ques_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ques)
@@ -119,7 +119,7 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 															W=l_post_ques_dense2.W,\
 															b=l_post_ques_dense2.b)
 			pq_preds[i] = lasagne.layers.get_output(l_post_ques_dense2_)
-			loss += T.sum(lasagne.objectives.binary_crossentropy(T.transpose(T.stack(pq_preds[i])), labels[:,i]))
+			loss += T.sum(lasagne.objectives.binary_crossentropy(pq_preds[i], labels[:,i]))
 	
 	post_ques_dense_params2 = lasagne.layers.get_all_params(l_post_ques_dense2, trainable=True)
 
@@ -190,7 +190,8 @@ def validate(val_fn, fold_name, epoch, fold, args):
 		out = val_fn(p, pm, q, qm, l)
 		loss = out[0]
 		preds = out[1:]
-		preds = np.transpose(preds)
+		preds = np.transpose(preds, (1, 0, 2))
+		preds = preds[:,:,0]
 		for j in range(len(preds)):
 			pdb.set_trace()
 			rank = get_rank(preds[j], l[j])
