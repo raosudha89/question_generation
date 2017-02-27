@@ -8,7 +8,7 @@ from collections import Counter
 import pdb
 import time
 import random, math
-DEPTH=2
+DEPTH=5
 
 def get_data_masks(content, max_len):
 	if len(content) > max_len:

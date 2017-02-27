@@ -45,15 +45,7 @@ def generate_data(posts, ques_list, ans_list, args):
 		# 	data_ques_list[i][j], data_ques_masks_list[i][j] = get_data_masks(ques_list[rand_index][j], args.ques_max_len)
 		# 	data_ans_list[i][j], data_ans_masks_list[i][j] = get_data_masks(ans_list[rand_index][j], args.ans_max_len)
 
-	return data_posts, data_post_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list
-
-def build_gru(content_list, content_masks_list, N, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
-	out = [None]*N
-	l_in = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_list[0])
-	l_mask = lasagne.layers.InputLayer(shape=(batch_size, max_len), input_var=content_masks_list[0])
-	#l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, word_emb_dim, W=word_embeddings)
-	l_emb = lasagne.layers.EmbeddingLayer(l_in, len_voc, hidden_dim, W=lasagne.init.GlorotNormal('relu'))
-	
+	return data_posts, data_post_masks, data_ques_list, data_ques_masks_list, data_ans_list, data_ans_masks_list	
 
 def build_lstm(content_list, content_masks_list, N, max_len, word_embeddings, word_emb_dim, hidden_dim, len_voc, batch_size):
 	out = [None]*N
@@ -182,6 +174,67 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 									[loss] + pqa_preds,)
 	return train_fn, test_fn
 
+def build_utility(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
+
+	# input theano vars
+	posts = T.imatrix()
+	post_masks = T.fmatrix()
+	ans_list = T.itensor3()
+	ans_masks_list = T.ftensor3()
+	labels = T.imatrix()
+
+	post_out, post_lstm_params = build_lstm_posts(posts, post_masks, args.post_max_len, \
+												  word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
+	ans_out, ans_lstm_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
+	
+	pa_preds = [None]*N
+	post_ans = T.concatenate([post_out, ans_out[0]], axis=1)
+	l_post_ans_in = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ans)
+	l_post_ans_denses = [None]*DEPTH
+	for k in range(DEPTH):
+		if k == 0:
+			l_post_ans_denses[k] = lasagne.layers.DenseLayer(l_post_ans_in, num_units=args.hidden_dim,\
+															nonlinearity=lasagne.nonlinearities.rectify)
+		else:
+			l_post_ans_denses[k] = lasagne.layers.DenseLayer(l_post_ans_denses[k-1], num_units=args.hidden_dim,\
+															nonlinearity=lasagne.nonlinearities.rectify)
+	l_post_ans_dense = lasagne.layers.DenseLayer(l_post_ans_denses[-1], num_units=1,\
+												nonlinearity=lasagne.nonlinearities.sigmoid)
+	pa_preds[0] = lasagne.layers.get_output(l_post_ans_dense)
+	loss = T.sum(lasagne.objectives.binary_crossentropy(pa_preds[0], labels[:,0]))
+	for i in range(1, N):
+		post_ans = T.concatenate([post_out, ans_out[i]], axis=1)
+		l_post_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ans)
+		for k in range(DEPTH):
+			if k == 0:
+				l_post_ans_dense_ = lasagne.layers.DenseLayer(l_post_ans_in_, num_units=args.hidden_dim,\
+																nonlinearity=lasagne.nonlinearities.rectify,\
+																W=l_post_ans_denses[k].W,\
+																b=l_post_ans_denses[k].b)
+			else:
+				l_post_ans_dense_ = lasagne.layers.DenseLayer(l_post_ans_dense_, num_units=args.hidden_dim,\
+																nonlinearity=lasagne.nonlinearities.rectify,\
+																W=l_post_ans_denses[k].W,\
+																b=l_post_ans_denses[k].b)
+		l_post_ans_dense_ = lasagne.layers.DenseLayer(l_post_ans_dense_, num_units=1,\
+													   nonlinearity=lasagne.nonlinearities.sigmoid)
+		pa_preds[i] = lasagne.layers.get_output(l_post_ans_dense_)
+		loss += T.sum(lasagne.objectives.binary_crossentropy(pa_preds[i], labels[:,i]))
+	post_ans_dense_params = lasagne.layers.get_all_params(l_post_ans_dense, trainable=True)
+
+	all_params = post_lstm_params + ans_lstm_params + post_ans_dense_params
+	print 'Params in concat ', lasagne.layers.count_params(l_post_ans_dense)
+	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
+
+	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
+	
+	train_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
+									[loss] + pa_preds, updates=updates)
+	test_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
+									[loss] + pa_preds,)
+	return train_fn, test_fn
+
 def iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, post_ids, batch_size, shuffle=False):
 	if shuffle:
 		indices = np.arange(posts.shape[0])
@@ -236,10 +289,11 @@ def write_test_predictions(out_file, postId, utilities, ranks):
 	out_file_o.write(lstring + '\n')
 	out_file_o.close()
 
-def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
+def validate(val_fn, utility_val_fn, fold_name, epoch, fold, args, out_file=None):
 	start = time.time()
 	num_batches = 0
 	cost = 0
+	utility_cost = 0
 	corr = 0
 	mrr = 0
 	total = 0
@@ -268,13 +322,25 @@ def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
 		am = np.transpose(am, (1, 0, 2))
 		out = val_fn(p, pm, q, qm, a, am, l)
 		loss = out[0]
-		preds = out[1:]
-		preds = np.transpose(preds, (1, 0, 2))
-		preds = preds[:,:,0]
+		probs = out[1:]
+		probs = np.transpose(probs, (1, 0, 2))
+		probs = probs[:,:,0]
+		
+		utility_out = utility_val_fn(p, pm, a, am, l)
+		utility_loss = utility_out[0]
+		utility_preds = utility_out[1:]
+		utility_preds = np.transpose(utility_preds, (1, 0, 2))
+		utility_preds = utility_preds[:,:,0]
+		
 		for j in range(args.batch_size):
-			rank = get_rank(preds[j], l[j])
-			# if 'DEV' in fold_name and epoch == 4:
-			# 	pdb.set_trace()
+			preds = [0.0]*N
+			for k in range(N):
+				#preds[k] = probs[j][k]*utility_preds[j][k]
+				#preds[k] = probs[j][k] + utility_preds[j][k]
+				preds[k] = max(probs[j][k], utility_preds[j][k])
+			rank = get_rank(preds, l[j])
+			if 'TRAIN' in fold_name and epoch == 5:
+				pdb.set_trace()
 			if rank == 1:
 				corr += 1
 			mrr += 1.0/rank
@@ -283,13 +349,14 @@ def validate(val_fn, fold_name, epoch, fold, args, out_file=None):
 					recall[index] += 1
 			total += 1
 			if out_file:
-				write_test_predictions(out_file, ids[j], preds[j], r[j])
+				write_test_predictions(out_file, ids[j], preds, r[j])
 		cost += loss
+		utility_cost += utility_loss
 		num_batches += 1
 		
 	recall = [round(curr_r*1.0/total, 3) for curr_r in recall]	
-	lstring = '%s: epoch:%d, cost:%f, acc:%f, mrr:%f,time:%d' % \
-				(fold_name, epoch, cost*1.0/num_batches, \
+	lstring = '%s: epoch:%d, cost:%f, utility_cost:%f, acc:%f, mrr:%f,time:%d' % \
+				(fold_name, epoch, cost*1.0/num_batches, utility_cost*1.0/num_batches, \
 					corr*1.0/total, mrr*1.0/total, time.time()-start)
 	print lstring
 	print recall
@@ -371,10 +438,15 @@ def main(args):
 	train_fn, test_fn, = build_baseline(word_embeddings, vocab_size, word_emb_dim, N, args, freeze=freeze)
 	print 'done! Time taken: ', time.time()-start
 
+	start = time.time()
+	print 'compiling utility graph...'
+	utility_train_fn, utility_test_fn, = build_utility(word_embeddings, vocab_size, word_emb_dim, N, args, freeze=freeze)
+	print 'done! Time taken: ', time.time()-start
+
 	# train network
 	for epoch in range(args.no_of_epochs):
-		validate(train_fn, 'TRAIN', epoch, train, args)
-		validate(test_fn, '\t TEST', epoch, test, args, args.test_predictions_output)
+		validate(train_fn, utility_train_fn, 'TRAIN', epoch, train, args)
+		validate(test_fn, utility_test_fn, '\t TEST', epoch, test, args, args.test_predictions_output)
 		print "\n"
 
 if __name__ == '__main__':
@@ -404,4 +476,3 @@ if __name__ == '__main__':
 	print args
 	print ""
 	main(args)
-	
