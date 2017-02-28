@@ -245,7 +245,38 @@ def get_pq_out(post_out, ques_out, N, args):
 	print 'Params in pq concat ', lasagne.layers.count_params(l_post_ques_denses[-1])
 	return pq_out, post_ques_dense_params
 
-def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
+def build_pa_model(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
+	
+	# input theano vars
+	posts = T.imatrix()
+	post_masks = T.fmatrix()
+	ques_list = T.itensor4()
+	ques_masks_list = T.ftensor4()
+	ans_list = T.itensor4()
+	ans_masks_list = T.ftensor4()
+	labels = T.imatrix()
+
+	post_out, post_lstm_params = build_lstm_posts(posts, post_masks, args.post_max_len, \
+												  word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)	
+	ans_out, ans_lstm_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
+											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
+	pa_preds, post_ans_dense_params = get_pa_preds(post_out, ans_out, N, args)
+	loss = 0.0
+	for i in range(N):
+		loss += T.sum(lasagne.objectives.binary_crossentropy(pa_preds[i*N+i], labels[:,i]))
+
+	all_params = post_lstm_params + ans_lstm_params + post_ans_dense_params
+
+	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
+
+	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
+	
+	train_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
+									[loss] + pa_preds, updates=updates)
+	dev_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
+									[loss] + pa_preds,)
+
+def build_pqa_model(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False):
 
 	# input theano vars
 	posts = T.imatrix()
@@ -263,101 +294,28 @@ def build_baseline(word_embeddings, len_voc, word_emb_dim, N, args, freeze=False
 	ans_out, ans_lstm_params = build_lstm(ans_list, ans_masks_list, N, args.ans_max_len, \
 											word_embeddings, word_emb_dim, args.hidden_dim, len_voc, args.batch_size)
 	
-	if METHOD == 'BASELINE':
-		pqa_preds, post_ques_ans_dense_params = get_pqa_preds(post_out, ques_out, ans_out, N, args)
-		loss = 0.0
-		for i in range(N):
-			loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i*N+i], labels[:,i]))
-		
-		squared_errors = [None]*(N*N)
-		for i in range(N):
-			for j in range(N):
-				squared_errors[i*N+j] = lasagne.objectives.squared_error(ans_out[i][0], ans_out[i][j])			
-		
-		all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense_params
+	pqa_preds, post_ques_ans_dense_params = get_pqa_preds(post_out, ques_out, ans_out, N, args)
+	loss = 0.0
+	for i in range(N):
+		loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i*N+i], labels[:,i]))
 	
-		loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
+	# squared_errors = [None]*(N*N)
+	# for i in range(N):
+	# 	for j in range(N):
+	# 		squared_errors[i*N+j] = lasagne.objectives.squared_error(ans_out[i][0], ans_out[i][j])			
 	
-		updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
-		
-		train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pqa_preds + squared_errors, updates=updates)
-		dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pqa_preds + squared_errors,)
-		
-	elif METHOD == 'EVPI':	
-		pa_preds, post_ans_dense_params = get_pa_preds(post_out, ans_out, N, args)
-		pq_out, post_ques_dense_params = get_pq_out(post_out, ques_out, N, args)
-		loss = 0.0
-		for i in range(N):
-			loss += T.sum(lasagne.objectives.binary_crossentropy(pa_preds[i*N+i], labels[:,i]))
+	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense_params
 
-		squared_errors = [None]*(N*N)
-		for i in range(N):
-			for j in range(N):
-				squared_errors[i*N+j] = lasagne.objectives.squared_error(pq_out[i][0], ans_out[i][j])
-			loss += T.sum(squared_errors[i*N+i])
+	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
-		all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + \
-						post_ans_dense_params + post_ques_dense_params
+	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
 	
-		loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
-	
-		updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
+	train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+									[loss] + pqa_preds, updates=updates)
+	dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
+									[loss] + pqa_preds,)
 		
-		train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pa_preds + squared_errors, updates=updates)
-		dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pa_preds + squared_errors,)
-	elif METHOD == 'EVPI_2':
-		pqa_preds, post_ques_ans_dense_params = get_pqa_preds(post_out, ques_out, ans_out, N, args)
-		loss = 0.0
-		for i in range(N):
-			loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i*N+i], labels[:,i]))
-		pa_preds, post_ans_dense_params = get_pa_preds(post_out, ans_out, N, args)
-		for i in range(N):
-			loss += T.sum(lasagne.objectives.binary_crossentropy(pa_preds[i*N+i], labels[:,i]))
-		all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + \
-						post_ans_dense_params + post_ques_ans_dense_params
-		loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
-	
-		updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
-		
-		train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pa_preds + pqa_preds, updates=updates)
-		dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pa_preds + pqa_preds,)
-	elif METHOD == 'EVPI_DISJOINT':
-		pqa_preds, post_ques_ans_dense_params = get_pqa_preds(post_out, ques_out, ans_out, N, args)
-		loss = 0.0
-		for i in range(N):
-			loss += T.sum(lasagne.objectives.binary_crossentropy(pqa_preds[i*N+i], labels[:,i]))
-		all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_ans_dense_params
-		loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
-		updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
-		
-		utility_loss = 0.0
-		pa_preds, post_ans_dense_params = get_pa_preds(post_out, ans_out, N, args)
-		for i in range(N):
-			utility_loss += T.sum(lasagne.objectives.binary_crossentropy(pa_preds[i*N+i], labels[:,i]))
-		utility_params = post_lstm_params + ans_lstm_params + post_ans_dense_params
-		utility_loss += args.rho * sum(T.sum(l ** 2) for l in utility_params)
-		utility_updates = lasagne.updates.adam(utility_loss, utility_params, learning_rate=args.learning_rate)
-		
-		train_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pqa_preds, updates=updates)
-		dev_fn = theano.function([posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, labels], \
-										[loss] + pqa_preds,)
-		
-		utility_train_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
-										[utility_loss] + pa_preds, updates=utility_updates)
-		utility_dev_fn = theano.function([posts, post_masks, ans_list, ans_masks_list, labels], \
-										[utility_loss] + pa_preds,)
-
-	if METHOD == 'EVPI_DISJOINT':
-		return train_fn, dev_fn, utility_train_fn, utility_dev_fn
-	else:
-		return train_fn, dev_fn
+	return train_fn, dev_fn
 
 def iterate_minibatches(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list, post_ids, batch_size, shuffle=False):
 	if shuffle:
