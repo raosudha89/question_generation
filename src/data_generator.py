@@ -84,10 +84,10 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 		ques_list = [None]*N
 		k = 0
 		for j in range(len(candidate_postIds)):
-			question_candidate_postIds = lucene_similar_questions[candidate_postIds[j]]
+			question_candidate_postIds = lucene_similar_questions[candidate_postIds[j]+'_1']
 			if len(question_candidate_postIds) < N:
 				continue
-			question_candidate_postIds[0] = candidate_postIds[j]
+			question_candidate_postIds[0] = candidate_postIds[j]+'_1'
 			ques_list[k] = [None]*N
 			for m in range(N):
 				ques_list[k][m] = question_candidate_postIds[m]
@@ -97,10 +97,11 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 		if k != N:
 			continue
 		post_ids.append(postId)
-		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
-		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[postId].post_sents, vocab))
+		pqaId = postId + '_1'	
+		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[pqaId].post, vocab))
+		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[pqaId].post_sents, vocab))
 		out_file.write("Id: " + str(postId) + '\n')
-		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[postId].post) + '\n\n')
+		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[pqaId].post) + '\n\n')
 		ques_list_vector = [None]*N
 		ans_list_vector = [None]*N
 		for k in range(N):
@@ -139,16 +140,17 @@ def write_data_log(post_ques_answers, posts, lucene_similar_posts, args):
 		out_file.write('\n\n')
 
 def generate_docs_for_lucene(post_ques_answers, posts, output_dir):
-	for postId in post_ques_answers:
+	for pqaId in post_ques_answers:
+		postId = pqaId.split('_')[0]
 		f = open(os.path.join(output_dir, str(postId) + '.txt'), 'w')
 		content = ' '.join(posts[postId].title).encode('utf-8') + ' ' + ' '.join(posts[postId].body).encode('utf-8')
 		f.write(content)
 		f.close()
 		
 def generate_ques_docs_for_lucene(post_ques_answers, output_dir):
-	for postId in post_ques_answers:
-		f = open(os.path.join(output_dir, str(postId) + '.txt'), 'w')
-		content = ' '.join(post_ques_answers[postId].question_comment).encode('utf-8') 
+	for pqaId in post_ques_answers:
+		f = open(os.path.join(output_dir, str(pqaId) + '.txt'), 'w')
+		content = ' '.join(post_ques_answers[pqaId].question_comment).encode('utf-8') 
 		f.write(content)
 		f.close()
 

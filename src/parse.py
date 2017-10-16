@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 import re
 import datetime
+import time
 import pdb
 from helper import *
 
@@ -132,9 +133,9 @@ class PostHistory:
 	def __init__(self):
 		self.initial_post = None
 		self.initial_post_sents = None
-		self.edited_post = None
-		self.edit_comment = None
-		self.edit_date = None
+		self.edited_posts = []
+		self.edit_comments = []
+		self.edit_dates = []
 
 class PostHistoryParser:
 
@@ -151,12 +152,12 @@ class PostHistoryParser:
 				self.posthistories[postId].initial_post = get_tokens(posthistory.attrib['Text'])
 				self.posthistories[postId].initial_post_sents = get_sent_tokens(posthistory.attrib['Text'])
 			elif posthistory_typeid == '5':
-				self.posthistories[postId].edited_post = get_tokens(posthistory.attrib['Text'])
-				self.posthistories[postId].edit_comment = get_tokens(posthistory.attrib['Comment'])
-				self.posthistories[postId].edit_date = datetime.datetime.strptime(posthistory.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S") 
+				self.posthistories[postId].edited_posts.append(get_tokens(posthistory.attrib['Text']))
+				self.posthistories[postId].edit_comments.append(get_tokens(posthistory.attrib['Comment']))
+				self.posthistories[postId].edit_dates.append(datetime.datetime.strptime(posthistory.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S")) 
 							#format of date e.g.:"2008-09-06T08:07:10.730" We don't want .730
 		for postId in self.posthistories.keys():
-			if not self.posthistories[postId].edited_post:
+			if not self.posthistories[postId].edited_posts:
 				del self.posthistories[postId]
 		
 	def get_posthistories(self):
@@ -199,19 +200,54 @@ class UserParser:
 		return junior_max_reputation, senior_min_reputation
 
 if __name__ == "__main__":
-	#post_parser = PostParser(filename=sys.argv[1])
-	#post_parser.parse()
-	#posts = post_parser.get_posts()
+	start_time = time.time()
+	print 'Parsing posts...'
+	post_parser = PostParser(filename=sys.argv[1])
+	post_parser.parse()
+	posts = post_parser.get_posts()
+	print 'Done! Time taken ', time.time() - start_time
+	print
 	
-	#comment_parser = CommentParser(filename=sys.argv[1])
-	#comment_parser.parse()
-	#question_comments = comment_parser.get_question_comments()
-	
-	#posthistory_parser = PostHistoryParser(filename=sys.argv[1])
-	#posthistory_parser.parse()
-	#posthistories = posthistory_parser.get_posthistories()
+	start_time = time.time()
+	print 'Parsing comments...'
+	comment_parser = CommentParser(filename=sys.argv[2])
+	comment_parser.parse_all_comments()
+	question_comments = comment_parser.get_question_comments()
+	print 'Done! Time taken ', time.time() - start_time
+	print
 
-	user_parser = UserParser(filename=sys.argv[1])
-	user_parser.parse()
-	users = user_parser.get_users()
-	print user_parser.get_junior_senior_reputations()
+	start_time = time.time()
+	print 'Parsing posthistories...'
+	posthistory_parser = PostHistoryParser(filename=sys.argv[3])
+	posthistory_parser.parse()
+	posthistories = posthistory_parser.get_posthistories()
+	print 'Done! Time taken ', time.time() - start_time
+	print
+
+	for postId in posthistories.keys():
+		if not question_comments[postId]:
+			continue 
+		print
+		print 'Post'
+		print 'Title: ' + ' '.join(posts[postId].title)
+		print ' '.join(posts[postId].body)
+		print
+		print 'Initial Post'
+		print ' '.join(posthistories[postId].initial_post)
+		print
+		print 'Edited Posts'
+		for i in range(len(posthistories[postId].edited_posts)):
+			print ' '.join(posthistories[postId].edited_posts[i])
+			print posthistories[postId].edit_dates[i]
+			print
+		print 'Comments'
+		for comment in question_comments[postId]: 
+			print
+			print comment.creation_date
+			print ' '.join(comment.text)
+			print 	
+
+	#user_parser = UserParser(filename=sys.argv[1])
+	#user_parser.parse()
+	#users = user_parser.get_users()
+	#print user_parser.get_junior_senior_reputations()

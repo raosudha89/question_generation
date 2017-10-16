@@ -67,44 +67,53 @@ class PostQuesAnsGenerator:
 
 	def generate(self, posts, question_comments, posthistories, vocab, word_embeddings):
 		for postId, posthistory in posthistories.iteritems():
-			if not posthistory.edited_post:
+			if not posthistory.edited_posts:
 				continue
 			if posts[postId].typeId != 1: # is not a main post
 				continue
 			if not posthistory.initial_post:
 				continue
-			answer = self.get_diff(posthistory.initial_post, posthistory.edited_post)
-			if not answer:
-				continue
-			# if not answer:
-			# 	answer = []
-			else:
-				answer = remove_urls(' '.join(answer))
-				answer = answer.split()
-			# question_comment_candidates = question_comments[postId]
-			# if not question_comment_candidates:
-			# 	continue
-			# if answer:
-			# 	question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
-			# else:
-			# 	question = self.find_first_question(question_comment_candidates)
-			# if not question:
-			# 	continue
-			
-			try:
-				question = question_comments[postId]
+			j = 1
+			for i in range(len(posthistory.edited_posts)):
+				answer = self.get_diff(posthistory.initial_post, posthistory.edited_posts[i])
+				if not answer:
+					continue
+				else:
+					answer = remove_urls(' '.join(answer))
+					answer = answer.split()
+				question_comment_candidates = []
+				for comment in question_comments[postId]:
+					if comment.creation_date > posthistory.edited_posts[i].edit_date:
+						continue #Ignore comments added after the edit
+					else:
+						question_comment_candidates.append(comment)
+				question = self.find_first_question(question_comment_candidates)
 				if not question:
 					continue
+				# question_comment_candidates = question_comments[postId]
+				# if not question_comment_candidates:
+				# 	continue
+				# if answer:
+				# 	question = self.find_right_question(answer, question_comment_candidates, vocab, word_embeddings)
 				# else:
-				# 	answer_indices = get_indices(answer, vocab)
-				# 	question_indices = get_indices(question.text, vocab)
-				# 	similarity = get_similarity(question_indices, answer_indices, word_embeddings)
-				# 	if similarity <= 0.75:
-				# 		continue
-			except:
-				continue 
+				# 	question = self.find_first_question(question_comment_candidates)
+				# if not question:
+				# 	continue
+			
+				#try:
+				#	question = question_comments[postId]
+				#	if not question:
+				#		continue
+					# else:
+					# 	answer_indices = get_indices(answer, vocab)
+					# 	question_indices = get_indices(question.text, vocab)
+					# 	similarity = get_similarity(question_indices, answer_indices, word_embeddings)
+					# 	if similarity <= 0.75:
+					# 		continue
+				#except:
+				#	continue
+				pqaId = postId + '_' + str(j)
+				self.post_ques_ans_dict[pqaId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question.text, answer)
+				j += 1
 
-			self.post_ques_ans_dict[postId] = PostQuesAns(posthistory.initial_post, posthistory.initial_post_sents, question.text, answer)
 		return self.post_ques_ans_dict
-
-
