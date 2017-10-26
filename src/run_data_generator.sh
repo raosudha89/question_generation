@@ -1,14 +1,12 @@
 #!/bin/bash
 
-#PBS -S /bin/sh
-#PBS -N data_superuser_v4
-#PBS -l pmem=64g
-#PBS -m abe
-#PBS -l walltime=10:00:00 
+#SBATCH --job-name=data_unix_v5
+#SBATCH --mem=32g
+#SBATCH --time=10:00:00
 
 DATADUMP_DIR=/fs/clip-corpora/stackexchange
 EMB_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
-DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v4
+DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v5
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
 #SITE_NAME=askubuntu.com
@@ -16,12 +14,13 @@ DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v4
 #SITE_NAME=english.stackexchange.com
 #SITE_NAME=math.stackexchange.com
 #SITE_NAME=physics.stackexchange.com
-SITE_NAME=superuser.com
+#SITE_NAME=superuser.com
 #SITE_NAME=tex.stackexchange.com
-#SITE_NAME=unix.stackexchange.com
+SITE_NAME=unix.stackexchange.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
-source /fs/clip-amr/isi-internship/theano-env/bin/activate
+#source /fs/clip-amr/isi-internship/theano-env/bin/activate
+source /fs/clip-amr/gpu_virtualenv/bin/activate
 
 mkdir -p $DATA_DIR/$SITE_NAME
 

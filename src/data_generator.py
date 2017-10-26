@@ -84,10 +84,10 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 		ques_list = [None]*N
 		k = 0
 		for j in range(len(candidate_postIds)):
-			question_candidate_postIds = lucene_similar_questions[candidate_postIds[j]+'_1']
+			question_candidate_postIds = lucene_similar_questions[candidate_postIds[j]]
 			if len(question_candidate_postIds) < N:
 				continue
-			question_candidate_postIds[0] = candidate_postIds[j]+'_1'
+			question_candidate_postIds[0] = candidate_postIds[j]
 			ques_list[k] = [None]*N
 			for m in range(N):
 				ques_list[k][m] = question_candidate_postIds[m]
@@ -97,11 +97,10 @@ def generate_neural_vectors(post_ques_answers, posts, lucene_similar_posts, luce
 		if k != N:
 			continue
 		post_ids.append(postId)
-		pqaId = postId + '_1'	
-		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[pqaId].post, vocab))
-		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[pqaId].post_sents, vocab))
+		post_vectors.append(get_indices(posts[postId].title + post_ques_answers[postId].post, vocab))
+		post_sent_vectors.append(get_sent_vectors([posts[postId].title] + post_ques_answers[postId].post_sents, vocab))
 		out_file.write("Id: " + str(postId) + '\n')
-		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[pqaId].post) + '\n\n')
+		out_file.write("Post: " + ' '.join(posts[postId].title) + ' ' + ' '.join(post_ques_answers[postId].post) + '\n\n')
 		ques_list_vector = [None]*N
 		ans_list_vector = [None]*N
 		for k in range(N):
@@ -140,17 +139,16 @@ def write_data_log(post_ques_answers, posts, lucene_similar_posts, args):
 		out_file.write('\n\n')
 
 def generate_docs_for_lucene(post_ques_answers, posts, output_dir):
-	for pqaId in post_ques_answers:
-		postId = pqaId.split('_')[0]
+	for postId in post_ques_answers:
 		f = open(os.path.join(output_dir, str(postId) + '.txt'), 'w')
 		content = ' '.join(posts[postId].title).encode('utf-8') + ' ' + ' '.join(posts[postId].body).encode('utf-8')
 		f.write(content)
 		f.close()
 		
 def generate_ques_docs_for_lucene(post_ques_answers, output_dir):
-	for pqaId in post_ques_answers:
-		f = open(os.path.join(output_dir, str(pqaId) + '.txt'), 'w')
-		content = ' '.join(post_ques_answers[pqaId].question_comment).encode('utf-8') 
+	for postId in post_ques_answers:
+		f = open(os.path.join(output_dir, str(postId) + '.txt'), 'w')
+		content = ' '.join(post_ques_answers[postId].question_comment).encode('utf-8') 
 		f.write(content)
 		f.close()
 
@@ -182,13 +180,13 @@ def main(args):
 	start_time = time.time()
 	print 'Parsing question comments...'
 	comment_parser = CommentParser(args.comments_xml)
-	# comment_parser.parse_all_comments()
-	# question_comments = comment_parser.get_question_comments()
-	# print 'Size: ', len(question_comments)
+	comment_parser.parse_all_comments()
+	question_comments = comment_parser.get_question_comments()
+	print 'Size: ', len(question_comments)
 	
-	comment_parser.parse_first_comment()
-	question_comment = comment_parser.get_question_comment()
-	print 'Size: ', len(question_comment)
+	# comment_parser.parse_first_comment()
+	# question_comment = comment_parser.get_question_comment()
+	# print 'Size: ', len(question_comment)
 	
 	print 'Done! Time taken ', time.time() - start_time
 	print
@@ -213,18 +211,19 @@ def main(args):
 	start_time = time.time()
 	print 'Generating post_ques_ans...'
 	post_ques_ans_generator = PostQuesAnsGenerator()
-	# post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, posthistories, vocab, word_embeddings)
-	post_ques_answers = post_ques_ans_generator.generate(posts, question_comment, posthistories, vocab, word_embeddings)
+	post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, posthistories, vocab, word_embeddings)
+	# post_ques_answers = post_ques_ans_generator.generate(posts, question_comment, posthistories, vocab, word_embeddings)
 	print 'Size: ', len(post_ques_answers)
 	print 'Done! Time taken ', time.time() - start_time
 	print
 	
-	# post_ques_ans_log_file = open(args.post_ques_ans_log, 'w')
-	# for postId in post_ques_answers:
-	# 	post_ques_ans_log_file.write('Id: %s\n' % postId)
-	# 	post_ques_ans_log_file.write('Post: %s\n' % ' '.join(post_ques_answers[postId].post))
-	# 	post_ques_ans_log_file.write('Ques: %s\n' % ' '.join(post_ques_answers[postId].question_comment))
-	# 	post_ques_ans_log_file.write('Ans: %s\n\n' % ' '.join(post_ques_answers[postId].answer))
+	post_ques_ans_log_file = open(args.post_ques_ans_log, 'w')
+	for postId in post_ques_answers:
+		post_ques_ans_log_file.write('Id: %s\n' % postId)
+		post_ques_ans_log_file.write('Title: %s\n' % post_ques_answers[postId].post_title)
+	 	post_ques_ans_log_file.write('Post: %s\n' % ' '.join(post_ques_answers[postId].post))
+	 	post_ques_ans_log_file.write('Ques: %s\n' % ' '.join(post_ques_answers[postId].question_comment))
+	 	post_ques_ans_log_file.write('Ans: %s\n\n' % ' '.join(post_ques_answers[postId].answer))
 	
 	generate_docs_for_lucene(post_ques_answers, posts, args.lucene_docs_dir)
 	os.system('cd /fs/clip-amr/lucene && sh run_lucene.sh ' + os.path.dirname(args.post_vectors))
