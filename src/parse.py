@@ -53,11 +53,19 @@ class PostParser:
 	def get_posts(self):
 		return self.posts
 
-class QuestionComment:
+class Comment:
 
-	def __init__(self, text, creation_date):
+	def __init__(self, text, creation_date, userId):
 		self.text = text
 		self.creation_date = creation_date
+		self.userId = userId
+
+class QuestionComment:
+
+	def __init__(self, text, creation_date, userId):
+		self.text = text
+		self.creation_date = creation_date
+		self.userId = userId
 
 class CommentParser:
 
@@ -66,6 +74,7 @@ class CommentParser:
 		self.question_comments = defaultdict(list)
 		self.question_comment = defaultdict(None)
 		self.comment = defaultdict(None)
+		self.all_comments = defaultdict(list)
 
 	def domain_words(self):
 		return ['duplicate', 'upvote', 'downvote', 'vote', 'related', 'upvoted', 'downvoted']
@@ -93,15 +102,36 @@ class CommentParser:
 			return text
 		return None
 
+	def get_comment_tokens(self, text):
+		text = remove_urls(text)
+		if text == '':
+			return None
+		tokens = get_tokens(text)
+		if tokens == []:
+			return None
+		if tokens[0] == '@':
+			tokens = tokens[2:]
+		return tokens
+
 	def parse_all_comments(self):
 		comments_tree = ET.parse(self.filename)
 		for comment in comments_tree.getroot():
 			postId = comment.attrib['PostId']
 			text = comment.attrib['Text']
+			try:
+				userId = comment.attrib['UserId']
+			except:
+				userId = None
+			creation_date = datetime.datetime.strptime(comment.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S")
+			comment_tokens = self.get_comment_tokens(text)
+			if not comment_tokens:
+				continue
+			curr_comment = Comment(comment_tokens, creation_date, userId) 
+			self.all_comments[postId].append(curr_comment)
+
 			question = self.get_question(text)
 			if question:
-				creation_date = datetime.datetime.strptime(comment.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S")
-				question_comment = QuestionComment(question, creation_date)
+				question_comment = QuestionComment(question, creation_date, userId)
 				self.question_comments[postId].append(question_comment)
 
 	def parse_first_comment(self):
@@ -109,6 +139,10 @@ class CommentParser:
 		for comment in comments_tree.getroot():
 			postId = comment.attrib['PostId']
 			text = comment.attrib['Text']
+			try:
+				userId = comment.attrib['UserId']
+			except:
+				userId = None
 			creation_date = datetime.datetime.strptime(comment.attrib['CreationDate'].split('.')[0], "%Y-%m-%dT%H:%M:%S")
 			try:
 				self.comment[postId]
@@ -119,7 +153,7 @@ class CommentParser:
 				self.comment[postId] = QuestionComment(text, creation_date)
 				question = self.get_question(text)
 				if question:
-					self.question_comment[postId] = QuestionComment(question, creation_date)
+					self.question_comment[postId] = QuestionComment(question, creation_date, userId)
 				else:
 					self.question_comment[postId] = None
 
@@ -128,6 +162,9 @@ class CommentParser:
 
 	def get_question_comment(self):
 		return self.question_comment
+
+	def get_all_comments(self):
+		return self.all_comments
 
 class PostHistory:
 	def __init__(self):

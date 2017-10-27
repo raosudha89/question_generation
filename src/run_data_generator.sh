@@ -1,12 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=data_unix_v5
-#SBATCH --mem=32g
-#SBATCH --time=10:00:00
+#SBATCH --job-name=data_superuser_v8
+#SBATCH --output=data_superuser_v8
+#SBATCH --mem=48g
+#SBATCH --time=12:00:00
 
 DATADUMP_DIR=/fs/clip-corpora/stackexchange
 EMB_DIR=/fs/clip-amr/question_generation/datasets/stackexchange
-DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v5
+DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v8
 #SITE_NAME=3dprinting.stackexchange.com
 #SITE_NAME=academia.stackexchange.com
 #SITE_NAME=askubuntu.com
@@ -14,9 +15,9 @@ DATA_DIR=/fs/clip-amr/question_generation/datasets/stackexchange_v5
 #SITE_NAME=english.stackexchange.com
 #SITE_NAME=math.stackexchange.com
 #SITE_NAME=physics.stackexchange.com
-#SITE_NAME=superuser.com
+SITE_NAME=superuser.com
 #SITE_NAME=tex.stackexchange.com
-SITE_NAME=unix.stackexchange.com
+#SITE_NAME=unix.stackexchange.com
 SCRIPTS_DIR=/fs/clip-amr/question_generation/src
 
 #source /fs/clip-amr/isi-internship/theano-env/bin/activate

@@ -182,6 +182,7 @@ def main(args):
 	comment_parser = CommentParser(args.comments_xml)
 	comment_parser.parse_all_comments()
 	question_comments = comment_parser.get_question_comments()
+	all_comments = comment_parser.get_all_comments()
 	print 'Size: ', len(question_comments)
 	
 	# comment_parser.parse_first_comment()
@@ -211,7 +212,7 @@ def main(args):
 	start_time = time.time()
 	print 'Generating post_ques_ans...'
 	post_ques_ans_generator = PostQuesAnsGenerator()
-	post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, posthistories, vocab, word_embeddings)
+	post_ques_answers = post_ques_ans_generator.generate(posts, question_comments, all_comments, posthistories, vocab, word_embeddings)
 	# post_ques_answers = post_ques_ans_generator.generate(posts, question_comment, posthistories, vocab, word_embeddings)
 	print 'Size: ', len(post_ques_answers)
 	print 'Done! Time taken ', time.time() - start_time
@@ -220,7 +221,7 @@ def main(args):
 	post_ques_ans_log_file = open(args.post_ques_ans_log, 'w')
 	for postId in post_ques_answers:
 		post_ques_ans_log_file.write('Id: %s\n' % postId)
-		post_ques_ans_log_file.write('Title: %s\n' % post_ques_answers[postId].post_title)
+		post_ques_ans_log_file.write('Title: %s\n' % ' '.join(post_ques_answers[postId].post_title))
 	 	post_ques_ans_log_file.write('Post: %s\n' % ' '.join(post_ques_answers[postId].post))
 	 	post_ques_ans_log_file.write('Ques: %s\n' % ' '.join(post_ques_answers[postId].question_comment))
 	 	post_ques_ans_log_file.write('Ans: %s\n\n' % ' '.join(post_ques_answers[postId].answer))
