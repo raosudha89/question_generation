@@ -322,10 +322,10 @@ def build_answer_generator(word_embeddings, len_voc, word_emb_dim, N, args, free
 	#	pa_loss += T.sum(T.dot(labels[:,0], lasagne.objectives.squared_error(pa_preds[0], \
 	#												(1-lasagne.nonlinearities.tanh(ques_squared_errors[0*N+j])))))
 	for i in range(1, N):
-		post_ans = T.concatenate([post_out, ans_out[i]], axis=1)
-		#post_ans = T.concatenate([post_out, ques_out[i], ans_out[i]], axis=1)
-		l_post_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ans)
-		#l_post_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ans)
+		#post_ans = T.concatenate([post_out, ans_out[i]], axis=1)
+		post_ans = T.concatenate([post_out, ques_out[i], ans_out[i]], axis=1)
+		#l_post_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 2*args.hidden_dim), input_var=post_ans)
+		l_post_ans_in_ = lasagne.layers.InputLayer(shape=(args.batch_size, 3*args.hidden_dim), input_var=post_ans)
 		for k in range(DEPTH):
 			if k == 0:
 				l_post_ans_dense_ = lasagne.layers.DenseLayer(l_post_ans_in_, num_units=args.hidden_dim,\
@@ -348,8 +348,8 @@ def build_answer_generator(word_embeddings, len_voc, word_emb_dim, N, args, free
 	print 'Params in post_ans ', lasagne.layers.count_params(l_post_ans_dense)
 	all_params = post_lstm_params + ques_lstm_params + ans_lstm_params + post_ques_dense_params + post_ans_dense_params
 	
-	loss = pq_a_loss + pa_loss*1.0/N	
-	#loss = pq_a_loss + pa_loss	
+	#loss = pq_a_loss + pa_loss*1.0/N	
+	loss = pq_a_loss + pa_loss	
 	loss += args.rho * sum(T.sum(l ** 2) for l in all_params)
 
 	updates = lasagne.updates.adam(loss, all_params, learning_rate=args.learning_rate)
@@ -425,8 +425,7 @@ def validate(val_fn, utility_val_fn, pq_val_fn, answer_generator_val_fn, \
 	corr = 0
 	mrr = 0
 	total = 0
-	#_lambda = 0.5
-	_lambda = 100000
+	_lambda = 0.5
 	N = args.no_of_candidates
 	recall = [0]*N
 	
@@ -536,7 +535,7 @@ def validate(val_fn, utility_val_fn, pq_val_fn, answer_generator_val_fn, \
 					preds[k] = max(all_preds)
 				if args.model == 'evpi_sum':
 					for m in range(N):
-						preds[k] += math.exp(-_lambda*pq_a_errors[j][k*N+m]) * pa_preds[j][m]
+						preds[k] += math.exp(-_lambda*pq_a_errors[j][k*N+m]) * pa_preds[j][k]
 					#preds[k] = math.exp(-_lambda*pq_a_errors[j][k*N+k]) * pa_preds[j][k] # --> good result
 				if args.model == 'curr_best':
 					preds[k] = probs[j][k*N+k] + utility_preds[j][k] + pq_preds[j][k]		
@@ -598,21 +597,18 @@ def shuffle_data(p, pm, q, qm, a, am):
 	return np.array(sp), np.array(spm), np.array(sq), np.array(sqm), np.array(sa), np.array(sam)
 
 def main(args):
-	post_ids = p.load(open(args.post_ids_train, 'rb'))
-	post_ids = np.array(post_ids)
-	post_vectors = p.load(open(args.post_vectors_train, 'rb'))
-	if len(post_vectors) != len(post_ids): #for ubuntu,unix,superuser combined data we don't have all train post_ids
-		post_ids = np.zeros(len(post_vectors))
+	post_ids_train = p.load(open(args.post_ids_train, 'rb'))
+	post_ids_train = np.array(post_ids_train)
+	post_vectors_train = p.load(open(args.post_vectors_train, 'rb'))
 
-	ques_list_vectors = p.load(open(args.ques_list_vectors_train, 'rb'))
-	ans_list_vectors = p.load(open(args.ans_list_vectors_train, 'rb'))
+	ques_list_vectors_train = p.load(open(args.ques_list_vectors_train, 'rb'))
+	ans_list_vectors_train = p.load(open(args.ans_list_vectors_train, 'rb'))
 	
-	# post_ids_test = p.load(open(args.post_ids_test, 'rb'))
-	# post_ids_test = np.array(post_ids_test)
-	# post_vectors_test = p.load(open(args.post_vectors_test, 'rb'))
-	# ques_list_vectors_test = p.load(open(args.ques_list_vectors_test, 'rb'))
-	# ans_list_vectors_test = p.load(open(args.ans_list_vectors_test, 'rb'))
-	
+	post_ids_test = p.load(open(args.post_ids_test, 'rb'))
+	post_ids_test = np.array(post_ids_test)
+	post_vectors_test = p.load(open(args.post_vectors_test, 'rb'))
+	ques_list_vectors_test = p.load(open(args.ques_list_vectors_test, 'rb'))
+	ans_list_vectors_test = p.load(open(args.ans_list_vectors_test, 'rb'))
 	out_file = open(args.test_predictions_output, 'w')
 	out_file.close()
 	
@@ -627,29 +623,14 @@ def main(args):
 
 	start = time.time()
 	print 'generating data'
-	posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
-					generate_data(post_vectors, ques_list_vectors, ans_list_vectors, args)
-	# posts_test, post_masks_test, ques_list_test, ques_masks_list_test, ans_list_test, ans_masks_list_test = \
-	# 				generate_data(post_vectors_test, ques_list_vectors_test, ans_list_vectors_test, args)
+	train = generate_data(post_vectors_train, ques_list_vectors_train, ans_list_vectors_train, args)
+	train.append(post_ids_train)
+ 	test = generate_data(post_vectors_test, ques_list_vectors_test, ans_list_vectors_test, args)
+	test.append(post_ids_test)
 	print 'done! Time taken: ', time.time() - start
 
-	# posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list = \
-	# 				shuffle_data(posts, post_masks, ques_list, ques_masks_list, ans_list, ans_masks_list)
-	t_size = int(len(posts)*0.8)
-	
-	train = [posts[:t_size], post_masks[:t_size], ques_list[:t_size], ques_masks_list[:t_size], ans_list[:t_size], ans_masks_list[:t_size], post_ids[:t_size]]
-	test = [posts[t_size:], post_masks[t_size:], ques_list[t_size:], ques_masks_list[t_size:], ans_list[t_size:], ans_masks_list[t_size:], post_ids[t_size:]]
-
-	# test = [np.concatenate((posts_test, posts[t_size:])), \
-	# 		np.concatenate((post_masks_test, post_masks[t_size:])), \
-	# 		np.concatenate((ques_list_test, ques_list[t_size:])), \
-	# 		np.concatenate((ques_masks_list_test, ques_masks_list[t_size:])), \
-	# 		np.concatenate((ans_list_test, ans_list[t_size:])), \
-	# 		np.concatenate((ans_masks_list_test, ans_masks_list[t_size:])), \
-	# 		np.concatenate((post_ids_test, post_ids[t_size:]))]
-
-	print 'Size of training data: ', t_size
-	print 'Size of test data: ', len(posts)-t_size
+	print 'Size of training data: ', len(post_ids_train)
+	print 'Size of test data: ', len(post_ids_test)
 	
 	train_fn, test_fn = None, None
 	utility_train_fn, utility_test_fn = None, None
